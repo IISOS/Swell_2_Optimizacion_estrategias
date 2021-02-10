@@ -1,1 +1,0 @@
-# Swell_2_Optimizacion_estrategias
