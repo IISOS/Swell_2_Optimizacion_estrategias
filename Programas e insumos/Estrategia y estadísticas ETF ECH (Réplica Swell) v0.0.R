@@ -52,7 +52,8 @@
 Libraries <- c("readxl",      # read_excel
                "rstudioapi",  # getActiveDocumentContext
                "lubridate",   # makedatetime, year, month,.., second
-               "ggplot2")     # ggplot
+               "ggplot2",     # ggplot  
+               "data.table")  # Data manipulation
 
 # Instalación/cargue de paquetes
 for (L in Libraries) {
@@ -98,23 +99,77 @@ N <- length(BDPI$DATEFRAME)
 BDPI <- BDPI[order(BDPI$DATEFRAME),]
 
 
-# 3. CÁLCULO VELA DIARIA ##########################################################
+# 3. CÁLCULO VELA DIARIA ######################################################
 
 BDPD <- BDPI
 BDPD$DATE <- as.Date(BDPD$DATEFRAME)
-BDPD <- BDPD[,c("DATE","DATEFRAME","OPEN","HIGH","LOW","CLOSE")]
-BDPD <- dcast(data = BDPD, formula = DATE ~ OPEN + HIGH + LOW + CLOSE, fun.aggregate = c(head))
+BDPD <- BDPD[,c("DATE","DATEFRAME","VOLUME","OPEN","HIGH","LOW","CLOSE")]
+BDPD <- as.data.table(BDPD)
+BDPD <- BDPD[, 
+             .(VOLUME = sum(VOLUME),
+               OPEN = first(OPEN),
+               HIGH = max(HIGH),
+               LOW = min(LOW),
+               CLOSE = last(CLOSE)
+               ),
+             by = "DATE"
+             ]
 
 # 3. CÁLCULO SEÑALES ##########################################################
 
 # Parametrizacion fractales
 ArchivoFractales <- "Parametros fractales.xlsx"
-Fractales <- read_excel(ArchivoFractales, sheet = "Parametros fractales")
+ParametrosFractales <- read_excel(ArchivoFractales, sheet = "Parametros fractales")
+
+#Función para Cálculo de señales de un fractal
+SenalFractal <- function(Fractal,BD,Parametros) {
+  #PENDIENTE INCLUIR EJEMPLO Y GENERALIZAR
+}
+
+FractalIntradiario <- "FI1"
+eval(parse(text = (paste0("if (!require(",
+                          L,
+                          ")) install.packages('",
+                          L,
+                          "')
+                            library(",
+                          L,
+                          ")"))))
+
+#Para FI1 (CLOSE > max(HIGH) entre -4 y -1):
+
+BDPI$FI1 <- NA
+
+BDPI$MAX_HIGH_4_1 <- cummax()
+
+
+BDPI$MAX_LOW_4_1 <- NA
+
+if (BDPI$CLOSE[5:N] > max(BDPI$HIGH)) {
+  FI1 = "BUY"
+} else {
+   if (BDPI$CLOSE < min(BDPI$LOW)) {
+    FI1 = "SELL"
+  } else {
+    FI1 = BDPI$CLOSE
+  }
+}
+
+
+
+
 
 # Seleccionar fractal diario (FD1,FD2,FD3,...,FDX)
-Fractal <- "FD1"
+FractalDiario <- "FD1"
+
 # Seleccionar fractal intradiario (FI1,FI2,FI3,...,FIX)
-Fractal <- "FI1"
+FractalIntradiario <- "FI1"
+
+
+
+
+
+
 
 # 4. POSICIÓN Y VALORACIÓN ####################################################
 
