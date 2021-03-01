@@ -51,7 +51,8 @@
 # Paquetes
 Libraries <- c("readxl",      # read_excel
                "rstudioapi",  # getActiveDocumentContext
-               "lubridate")   # makedatetime, year, month,.., second
+               "lubridate",   # makedatetime, year, month,.., second
+               "ggplot2")     # ggplot
 
 # Instalación/cargue de paquetes
 for (L in Libraries) {
@@ -76,29 +77,44 @@ setwd(BaseDirPath)
 
 # Lectura de archivo histórico de precios 
 ArchivoCargue <- "Data ETF ECH.xlsx"
-BDPS <- read_excel(ArchivoCargue, sheet = "DATOS ECH")
+BDPI <- read_excel(ArchivoCargue, sheet = "DATOS ECH")
 
 # Asignación de títulos a las columnas
-colnames(BDPS) <- c("DATE","FRAME","VOLUME","OPEN","HIGH","LOW","CLOSE")
+colnames(BDPI) <- c("DATE","FRAME","VOLUME","OPEN","HIGH","LOW","CLOSE")
 
 # Reorganizacion de fechas y franjas horarias
-BDPS$DATEFRAME <- make_datetime(year = year(BDPS$DATE), 
-                                month = month(BDPS$DATE), 
-                                day = day(BDPS$DATE), 
-                                hour = hour(BDPS$FRAME), 
-                                min = minute(BDPS$FRAME), 
-                                sec = second(BDPS$FRAME))
+BDPI$DATEFRAME <- make_datetime(year = year(BDPI$DATE), 
+                                month = month(BDPI$DATE), 
+                                day = day(BDPI$DATE), 
+                                hour = hour(BDPI$FRAME), 
+                                min = minute(BDPI$FRAME), 
+                                sec = second(BDPI$FRAME))
 
-BDPS[,c("DATE","FRAME")] <- NULL
-BDPS <- BDPS[,c("DATEFRAME","VOLUME","OPEN","HIGH","LOW","CLOSE")]
+BDPI[,c("DATE","FRAME")] <- NULL
+BDPI <- BDPI[,c("DATEFRAME","VOLUME","OPEN","HIGH","LOW","CLOSE")]
 
 # Tamaño y ordenamiento de datos
-N <- length(BDPS$DATE)
-BDPS <- BDPS[order(c(BDPS$DATE,BDPS$FRAME)),]
+N <- length(BDPI$DATEFRAME)
+BDPI <- BDPI[order(BDPI$DATEFRAME),]
 
+
+# 3. CÁLCULO VELA DIARIA ##########################################################
+
+BDPD <- BDPI
+BDPD$DATE <- as.Date(BDPD$DATEFRAME)
+BDPD <- BDPD[,c("DATE","DATEFRAME","OPEN","HIGH","LOW","CLOSE")]
+BDPD <- dcast(data = BDPD, formula = DATE ~ OPEN + HIGH + LOW + CLOSE, fun.aggregate = c(head))
 
 # 3. CÁLCULO SEÑALES ##########################################################
 
+# Parametrizacion fractales
+ArchivoFractales <- "Parametros fractales.xlsx"
+Fractales <- read_excel(ArchivoFractales, sheet = "Parametros fractales")
+
+# Seleccionar fractal diario (FD1,FD2,FD3,...,FDX)
+Fractal <- "FD1"
+# Seleccionar fractal intradiario (FI1,FI2,FI3,...,FIX)
+Fractal <- "FI1"
 
 # 4. POSICIÓN Y VALORACIÓN ####################################################
 
@@ -112,74 +128,74 @@ LmedioPmax_V_PE <- 0.015   # Límite medio de precio máximo (Pmax) frente a pre
 PORC_CIERRE_PARCIAL <- 0.5 # Porcentaje de cierre parcial de posiciones
 
 # Signos de posiciones cortas o largas para las señales
-BDPS$SENALSIGNO[BDPS$SENAL=="BUY"] <- 1
-BDPS$SENALSIGNO[BDPS$SENAL=="SELL"] <- -1
+BDP$SENALSIGNO[BDP$SENAL=="BUY"] <- 1
+BDP$SENALSIGNO[BDP$SENAL=="SELL"] <- -1
 
 # Columnas para precio de entrada (P_ENTRADA), volumen y valor de posición inicial y final
 # (VOL_POSINICIAL, VOL_POSFINAL, VAL_POSINICIAL y VAL_POSFINAL), volumen y valor de compras
 # y ventas (VOL_COMPRAS, VOL_VENTAS, VAL_COMPRAS y VAL_VENTAS)
-BDPS$P_ENTRADA <- c(BDPS$CLOSE[1], rep(0, (N-1)))
-BDPS$VOL_POSINICIAL <- NA
-BDPS$VAL_POSINICIAL <- NA
-BDPS$VOL_COMPRAS <- c((VOL_ENTRADA), rep(NA, (N-1)))
-BDPS$VAL_COMPRAS <- c((VOL_ENTRADA*BDPS$P_ENTRADA[1]), rep(NA, (N-1)))
-BDPS$VOL_VENTAS <- c(0, rep(NA, (N-1)))
-BDPS$VAL_VENTAS <- c(0, rep(NA, (N-1)))
-BDPS$VOL_POSFINAL <- c(VOL_ENTRADA, rep(NA, (N-1)))
-BDPS$VAL_POSFINAL <- c((VOL_ENTRADA*BDPS$CLOSE[1]), rep(NA, (N-1)))
-BDPS$EFECTIVO <- c(0, rep(NA, (N-1)))
-BDPS$VAL_PORT <- c((BDPS$VOL_POSFINAL[1]*BDPS$CLOSE[1]), rep(NA, (N-1)))
+BDP$P_ENTRADA <- c(BDP$CLOSE[1], rep(0, (N-1)))
+BDP$VOL_POSINICIAL <- NA
+BDP$VAL_POSINICIAL <- NA
+BDP$VOL_COMPRAS <- c((VOL_ENTRADA), rep(NA, (N-1)))
+BDP$VAL_COMPRAS <- c((VOL_ENTRADA*BDP$P_ENTRADA[1]), rep(NA, (N-1)))
+BDP$VOL_VENTAS <- c(0, rep(NA, (N-1)))
+BDP$VAL_VENTAS <- c(0, rep(NA, (N-1)))
+BDP$VOL_POSFINAL <- c(VOL_ENTRADA, rep(NA, (N-1)))
+BDP$VAL_POSFINAL <- c((VOL_ENTRADA*BDP$CLOSE[1]), rep(NA, (N-1)))
+BDP$EFECTIVO <- c(0, rep(NA, (N-1)))
+BDP$VAL_PORT <- c((BDP$VOL_POSFINAL[1]*BDP$CLOSE[1]), rep(NA, (N-1)))
 
 # Cálculo de posición y valoración inicial y final, volumen y valoración de ventas y compras,
 # precio de entrada y valoración de efectivo y portafolio
 for (d in 2:N) {
   
-  BDPS$VOL_POSINICIAL[d] <- BDPS$VOL_POSFINAL[d-1]
-  BDPS$VAL_POSINICIAL[d] <- BDPS$VAL_POSFINAL[d-1]
+  BDP$VOL_POSINICIAL[d] <- BDP$VOL_POSFINAL[d-1]
+  BDP$VAL_POSINICIAL[d] <- BDP$VAL_POSFINAL[d-1]
   
-  if (BDPS$SENAL[d] != BDPS$SENAL[d-1]) { # Si la señal cambia:
+  if (BDP$SENAL[d] != BDP$SENAL[d-1]) { # Si la señal cambia:
     
-    BDPS$VOL_VENTAS[d] <- BDPS$VOL_POSINICIAL[d]
-    BDPS$VAL_VENTAS[d] <- BDPS$VOL_VENTAS[d] * BDPS$CLOSE[d]
-    BDPS$P_ENTRADA[d] <- BDPS$CLOSE[d]
-    BDPS$VAL_COMPRAS[d] <- BDPS$EFECTIVO[d-1] + BDPS$VAL_VENTAS[d]
-    BDPS$VOL_COMPRAS[d] <- BDPS$VAL_COMPRAS[d] / BDPS$P_ENTRADA[d]
+    BDP$VOL_VENTAS[d] <- BDP$VOL_POSINICIAL[d]
+    BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * BDP$CLOSE[d]
+    BDP$P_ENTRADA[d] <- BDP$CLOSE[d]
+    BDP$VAL_COMPRAS[d] <- BDP$EFECTIVO[d-1] + BDP$VAL_VENTAS[d]
+    BDP$VOL_COMPRAS[d] <- BDP$VAL_COMPRAS[d] / BDP$P_ENTRADA[d]
     
   } else { # Si la señal NO cambia:
     
-    if (BDPS$VOL_POSINICIAL[d] != 0) {# Si hay posición
+    if (BDP$VOL_POSINICIAL[d] != 0) {# Si hay posición
       
-      BDPS$VAL_COMPRAS[d] <- 0
-      BDPS$VOL_COMPRAS[d] <- 0
+      BDP$VAL_COMPRAS[d] <- 0
+      BDP$VOL_COMPRAS[d] <- 0
       
-      if (((BDPS$OPEN[d]/BDPS$P_ENTRADA[d-1])-1) <= -LminPA_V_PE) { # Si PA≤0,975*PE:
+      if (((BDP$OPEN[d]/BDP$P_ENTRADA[d-1])-1) <= -LminPA_V_PE) { # Si PA≤0,975*PE:
         # Corto SiPA>=1.025*PE 
         
-        BDPS$VOL_VENTAS[d] <- BDPS$VOL_POSINICIAL[d]   # Cierro toda la posición
-        BDPS$VAL_VENTAS[d] <- BDPS$VOL_VENTAS[d] * BDPS$OPEN[d]   # Cierro a PA
-        BDPS$P_ENTRADA[d] <- NA
+        BDP$VOL_VENTAS[d] <- BDP$VOL_POSINICIAL[d]   # Cierro toda la posición
+        BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * BDP$OPEN[d]   # Cierro a PA
+        BDP$P_ENTRADA[d] <- NA
         
       } else { # Si PA>0,975*PE:
         
-        if (((BDPS$OPEN[d]/BDPS$P_ENTRADA[d-1])-1) <= -LmedioPA_V_PE) {# Si PA≤0,985*PE:
+        if (((BDP$OPEN[d]/BDP$P_ENTRADA[d-1])-1) <= -LmedioPA_V_PE) {# Si PA≤0,985*PE:
           
-          BDPS$VOL_VENTAS[d] <- PORC_CIERRE_PARCIAL * BDPS$VOL_POSINICIAL[d]  #Cierro parcial (50%)
-          BDPS$VAL_VENTAS[d] <- BDPS$VOL_VENTAS[d] * BDPS$OPEN[d]   #Cierro a PA    
-          BDPS$P_ENTRADA[d] <- BDPS$P_ENTRADA[d-1]
+          BDP$VOL_VENTAS[d] <- PORC_CIERRE_PARCIAL * BDP$VOL_POSINICIAL[d]  #Cierro parcial (50%)
+          BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * BDP$OPEN[d]   #Cierro a PA    
+          BDP$P_ENTRADA[d] <- BDP$P_ENTRADA[d-1]
           
-          if (((BDPS$LOW[d]/BDPS$P_ENTRADA[d-1])-1) <= -LminPmin_V_PE) {# Si PMin≤0,975*PE:
+          if (((BDP$LOW[d]/BDP$P_ENTRADA[d-1])-1) <= -LminPmin_V_PE) {# Si PMin≤0,975*PE:
             
-            BDPS$VOL_VENTAS[d] <- BDPS$VOL_VENTAS[d] + (1 - PORC_CIERRE_PARCIAL) * BDPS$VOL_POSINICIAL[d]    # Termino de cerrar posición
-            BDPS$VAL_VENTAS[d] <- BDPS$VOL_VENTAS[d] * ((1-LminPmin_V_PE) * BDPS$P_ENTRADA[d])  # Cierro a PE
-            BDPS$P_ENTRADA[d] <- NA   
+            BDP$VOL_VENTAS[d] <- BDP$VOL_VENTAS[d] + (1 - PORC_CIERRE_PARCIAL) * BDP$VOL_POSINICIAL[d]    # Termino de cerrar posición
+            BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * ((1-LminPmin_V_PE) * BDP$P_ENTRADA[d])  # Cierro a PE
+            BDP$P_ENTRADA[d] <- NA   
             
           } else {# Si PMin>0,975*PE:
             
-            if (((BDPS$HIGH[d]/BDPS$P_ENTRADA[d-1])-1) >= LmedioPmax_V_PE) {# Si Pmax≥1,015*PE 
+            if (((BDP$HIGH[d]/BDP$P_ENTRADA[d-1])-1) >= LmedioPmax_V_PE) {# Si Pmax≥1,015*PE 
               
-              BDPS$VOL_VENTAS[d] <- BDPS$VOL_VENTAS[d] + (1 - PORC_CIERRE_PARCIAL) * BDPS$VOL_POSINICIAL[d]   # Termino de cerrar posición
-              BDPS$VAL_VENTAS[d] <- BDPS$VOL_VENTAS[d] * ((1+LmedioPmax_V_PE) * BDPS$P_ENTRADA[d])   # Cierro a PE
-              BDPS$P_ENTRADA[d] <- NA
+              BDP$VOL_VENTAS[d] <- BDP$VOL_VENTAS[d] + (1 - PORC_CIERRE_PARCIAL) * BDP$VOL_POSINICIAL[d]   # Termino de cerrar posición
+              BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * ((1+LmedioPmax_V_PE) * BDP$P_ENTRADA[d])   # Cierro a PE
+              BDP$P_ENTRADA[d] <- NA
               
             } else {# Si Pmax<1,015*PE, se mantiene 50% de posición abierta
               
@@ -191,36 +207,36 @@ for (d in 2:N) {
           
         } else {
           
-          if (((BDPS$OPEN[d]/BDPS$P_ENTRADA[d-1])-1) <= LmedioPA_V_PE) {# Si PA≤1,015*PE 
+          if (((BDP$OPEN[d]/BDP$P_ENTRADA[d-1])-1) <= LmedioPA_V_PE) {# Si PA≤1,015*PE 
             
-            if (((BDPS$LOW[d]/BDPS$P_ENTRADA[d-1])-1) <= -LminPmin_V_PE) {# Si PMin≤0,975*PE 
+            if (((BDP$LOW[d]/BDP$P_ENTRADA[d-1])-1) <= -LminPmin_V_PE) {# Si PMin≤0,975*PE 
               
-              BDPS$VOL_VENTAS[d] <- BDPS$VOL_POSINICIAL[d]   
-              BDPS$VAL_VENTAS[d] <- 0.5 * BDPS$VOL_VENTAS[d] * ((1-LmedioPmin_V_PE) * BDPS$P_ENTRADA[d])
-              + 0.5 * BDPS$VOL_VENTAS[d] * ((1-LminPmin_V_PE) * BDPS$P_ENTRADA[d])
-              BDPS$P_ENTRADA[d] <- NA
+              BDP$VOL_VENTAS[d] <- BDP$VOL_POSINICIAL[d]   
+              BDP$VAL_VENTAS[d] <- 0.5 * BDP$VOL_VENTAS[d] * ((1-LmedioPmin_V_PE) * BDP$P_ENTRADA[d])
+              + 0.5 * BDP$VOL_VENTAS[d] * ((1-LminPmin_V_PE) * BDP$P_ENTRADA[d])
+              BDP$P_ENTRADA[d] <- NA
               
             } else {# Si PMin>0,975*PE
               
-              if (((BDPS$LOW[d]/BDPS$P_ENTRADA[d-1])-1) <= -LmedioPmin_V_PE) {# Si PMin≤0,985*PE
+              if (((BDP$LOW[d]/BDP$P_ENTRADA[d-1])-1) <= -LmedioPmin_V_PE) {# Si PMin≤0,985*PE
                 
-                BDPS$VOL_VENTAS[d] <- PORC_CIERRE_PARCIAL * BDPS$VOL_POSINICIAL[d]
-                BDPS$VAL_VENTAS[d] <- BDPS$VOL_VENTAS[d] * ((1-LmedioPmin_V_PE) * BDPS$P_ENTRADA[d])
-                BDPS$P_ENTRADA[d] <- BDPS$P_ENTRADA[d-1]
+                BDP$VOL_VENTAS[d] <- PORC_CIERRE_PARCIAL * BDP$VOL_POSINICIAL[d]
+                BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * ((1-LmedioPmin_V_PE) * BDP$P_ENTRADA[d])
+                BDP$P_ENTRADA[d] <- BDP$P_ENTRADA[d-1]
                 
               } else {# Si PMin>0,985*PE
                 
-                if (((BDPS$HIGH[d]/BDPS$P_ENTRADA[d-1])-1) >= LmedioPmax_V_PE) {# Si Pmax≥1,015*PE
+                if (((BDP$HIGH[d]/BDP$P_ENTRADA[d-1])-1) >= LmedioPmax_V_PE) {# Si Pmax≥1,015*PE
                   
-                  BDPS$VOL_VENTAS[d] <- PORC_CIERRE_PARCIAL * BDPS$VOL_POSINICIAL[d]
-                  BDPS$VAL_VENTAS[d] <- BDPS$VOL_VENTAS[d] * ((1+LmedioPmax_V_PE) * BDPS$P_ENTRADA[d])
-                  BDPS$P_ENTRADA[d] <- BDPS$P_ENTRADA[d-1]
+                  BDP$VOL_VENTAS[d] <- PORC_CIERRE_PARCIAL * BDP$VOL_POSINICIAL[d]
+                  BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * ((1+LmedioPmax_V_PE) * BDP$P_ENTRADA[d])
+                  BDP$P_ENTRADA[d] <- BDP$P_ENTRADA[d-1]
                   
                 } else {# Si Pmax<1,015*PE, se mantiene 100% de posición abierta
                   
-                  BDPS$VOL_VENTAS[d] <- 0
-                  BDPS$VAL_VENTAS[d] <- 0
-                  BDPS$P_ENTRADA[d] <- BDPS$P_ENTRADA[d-1]
+                  BDP$VOL_VENTAS[d] <- 0
+                  BDP$VAL_VENTAS[d] <- 0
+                  BDP$P_ENTRADA[d] <- BDP$P_ENTRADA[d-1]
                   
                 }
                 
@@ -230,15 +246,15 @@ for (d in 2:N) {
             
           } else {
             
-            BDPS$VOL_VENTAS[d] <- PORC_CIERRE_PARCIAL * BDPS$VOL_POSINICIAL[d]
-            BDPS$VAL_VENTAS[d] <- BDPS$VOL_VENTAS[d] * BDPS$OPEN[d]
-            BDPS$P_ENTRADA[d] <- BDPS$P_ENTRADA[d-1]
+            BDP$VOL_VENTAS[d] <- PORC_CIERRE_PARCIAL * BDP$VOL_POSINICIAL[d]
+            BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * BDP$OPEN[d]
+            BDP$P_ENTRADA[d] <- BDP$P_ENTRADA[d-1]
             
-            if (BDPS$LOW[d] <= BDPS$P_ENTRADA[d]) {# Si PMin≤PE:
+            if (BDP$LOW[d] <= BDP$P_ENTRADA[d]) {# Si PMin≤PE:
               
-              BDPS$VOL_VENTAS[d] <- BDPS$VOL_VENTAS[d] + (1 - PORC_CIERRE_PARCIAL) * BDPS$VOL_POSINICIAL[d]
-              BDPS$VAL_VENTAS[d] <- BDPS$VOL_VENTAS[d] * BDPS$P_ENTRADA[d]
-              BDPS$P_ENTRADA[d] <- NA
+              BDP$VOL_VENTAS[d] <- BDP$VOL_VENTAS[d] + (1 - PORC_CIERRE_PARCIAL) * BDP$VOL_POSINICIAL[d]
+              BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * BDP$P_ENTRADA[d]
+              BDP$P_ENTRADA[d] <- NA
               
             } else {# Si PMin>PE, se mantiene 50% de posición abierta:
               
@@ -254,35 +270,35 @@ for (d in 2:N) {
       
     } else {
       
-      BDPS$VAL_COMPRAS[d] <- 0
-      BDPS$VOL_COMPRAS[d] <- 0
-      BDPS$VOL_VENTAS[d] <- 0
-      BDPS$VAL_VENTAS[d] <- 0
-      BDPS$P_ENTRADA[d] <- BDPS$P_ENTRADA[d-1]
+      BDP$VAL_COMPRAS[d] <- 0
+      BDP$VOL_COMPRAS[d] <- 0
+      BDP$VOL_VENTAS[d] <- 0
+      BDP$VAL_VENTAS[d] <- 0
+      BDP$P_ENTRADA[d] <- BDP$P_ENTRADA[d-1]
       
     }
     
   }
   
-  BDPS$VOL_POSFINAL[d] <- BDPS$VOL_POSINICIAL[d] + BDPS$VOL_COMPRAS[d] - BDPS$VOL_VENTAS[d]
-  BDPS$VAL_POSFINAL[d] <- BDPS$VOL_POSFINAL[d] * BDPS$CLOSE[d]
-  BDPS$EFECTIVO[d] <- BDPS$EFECTIVO[d-1] + BDPS$VAL_VENTAS[d] - BDPS$VAL_COMPRAS[d]
-  BDPS$VAL_PORT[d] <- BDPS$VAL_POSFINAL[d] + BDPS$EFECTIVO[d]
+  BDP$VOL_POSFINAL[d] <- BDP$VOL_POSINICIAL[d] + BDP$VOL_COMPRAS[d] - BDP$VOL_VENTAS[d]
+  BDP$VAL_POSFINAL[d] <- BDP$VOL_POSFINAL[d] * BDP$CLOSE[d]
+  BDP$EFECTIVO[d] <- BDP$EFECTIVO[d-1] + BDP$VAL_VENTAS[d] - BDP$VAL_COMPRAS[d]
+  BDP$VAL_PORT[d] <- BDP$VAL_POSFINAL[d] + BDP$EFECTIVO[d]
   
 }
 
 
 # 5. CÁLCULO ESTADÍSTICAS #####################################################
 
-BDPS$RET <- c(0, rep(NA, (N-1)))
-BDPS$RET_ACUM <- c(0, rep(NA, (N-1)))
-BDPS$VAL_PORT_ACUM_B100 <- c(100, rep(NA, (N-1)))
-BDPS$MAX_PERD_ACUM <- c(0, rep(NA, (N-1)))
+BDP$RET <- c(0, rep(NA, (N-1)))
+BDP$RET_ACUM <- c(0, rep(NA, (N-1)))
+BDP$VAL_PORT_ACUM_B100 <- c(100, rep(NA, (N-1)))
+BDP$MAX_PERD_ACUM <- c(0, rep(NA, (N-1)))
 
-BDPS$RET <- (BDPS$VAL_PORT / c(NA, BDPS$VAL_PORT[1:N-1]) -1) * c(NA, BDPS$SENALSIGNO[1:N-1]) 
-BDPS$RET_ACUM <- c(NA, cumprod(1 + BDPS$RET[2:N]))
-RET_ACUM <- BDPS$RET_ACUM[N] - 1
-NDIAS <- as.numeric(BDPS$DATE[N] - BDPS$DATE[1])
+BDP$RET <- (BDP$VAL_PORT / c(NA, BDP$VAL_PORT[1:N-1]) -1) * c(NA, BDP$SENALSIGNO[1:N-1]) 
+BDP$RET_ACUM <- c(NA, cumprod(1 + BDP$RET[2:N]))
+RET_ACUM <- BDP$RET_ACUM[N] - 1
+NDIAS <- as.numeric(BDP$DATE[N] - BDP$DATE[1])
 RET_ACUM_ANUAL <- (1 + RET_ACUM)^(365/(NDIAS-1))-1
 
 
