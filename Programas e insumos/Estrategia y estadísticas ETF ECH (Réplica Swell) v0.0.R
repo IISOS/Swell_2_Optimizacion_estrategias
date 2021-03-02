@@ -53,7 +53,9 @@ Libraries <- c("readxl",      # read_excel
                "rstudioapi",  # getActiveDocumentContext
                "lubridate",   # makedatetime, year, month,.., second
                "ggplot2",     # ggplot  
-               "data.table")  # Data manipulation
+               "data.table",  # Data manipulation
+               "zoo",          # rollapplyr
+               "tidyr")       # fill 
 
 # Instalación/cargue de paquetes
 for (L in Libraries) {
@@ -121,40 +123,60 @@ BDPD <- BDPD[,
 ArchivoFractales <- "Parametros fractales.xlsx"
 ParametrosFractales <- read_excel(ArchivoFractales, sheet = "Parametros fractales")
 
+ParametrosFractales$VentanaMovil <- ParametrosFractales$`Periodo fin` - ParametrosFractales$`Periodo inicio` + 1
+ParametrosFractales$Desfase <- -ParametrosFractales$`Periodo fin`
+ParametrosFractales$NombreRefCompra <- paste0(ParametrosFractales$`Función compra`,
+                                              ParametrosFractales$`Ref. compra`,
+                                              "_",
+                                              -ParametrosFractales$`Periodo inicio`,
+                                              "_",
+                                              -ParametrosFractales$`Periodo fin`)
+ParametrosFractales$NombreRefVenta <- paste0(ParametrosFractales$`Función venta`,
+                                              ParametrosFractales$`Ref. venta`,
+                                              "_",
+                                              -ParametrosFractales$`Periodo inicio`,
+                                              "_",
+                                              -ParametrosFractales$`Periodo fin`)
+ParametrosFractales$FractalI <- ###
+ParametrosFractales$FractalI <- ###
+ParametrosFractales$VariableCompraI <- paste0("BDPI$",ParametrosFractales$`Variable compra`)
+ParametrosFractales$VariableCompraD <- paste0("BDPD$",ParametrosFractales$`Variable compra`)
+ParametrosFractales$RefCompraI <- paste0("BDPI$",ParametrosFractales$`Ref. compra`)
+ParametrosFractales$RefCompraD <- paste0("BDPD$",ParametrosFractales$`Ref. compra`)
+ParametrosFractales$VariableVentaI <- paste0("BDPI$",ParametrosFractales$`Variable venta`)
+ParametrosFractales$VariableVentaD <- paste0("BDPD$",ParametrosFractales$`Variable venta`)
+ParametrosFractales$RefVentaI <- paste0("BDPI$",ParametrosFractales$`Ref. venta`)
+ParametrosFractales$RefVentaD <- paste0("BDPD$",ParametrosFractales$`Ref. venta`)
+
+
+
 #Función para Cálculo de señales de un fractal
 SenalFractal <- function(Fractal,BD,Parametros) {
   #PENDIENTE INCLUIR EJEMPLO Y GENERALIZAR
 }
 
 FractalIntradiario <- "FI1"
-eval(parse(text = (paste0("if (!require(",
-                          L,
-                          ")) install.packages('",
-                          L,
-                          "')
-                            library(",
-                          L,
-                          ")"))))
+eval(parse(text = y))
 
 #Para FI1 (CLOSE > max(HIGH) entre -4 y -1):
 
 BDPI$FI1 <- NA
 
-BDPI$MAX_HIGH_4_1 <- cummax()
+BDPI$MAX_HIGH_4_1 <- rollapplyr(data = BDPI$HIGH, width = 4, FUN = max, fill = NA)
+BDPI$MAX_HIGH_4_1 <- shift(x = BDPI$MAX_HIGH_4_1, n = 1, fill = NA, type = "lag")
 
+BDPI$MIN_LOW_4_1 <- rollapplyr(data = BDPI$LOW, width = 4, FUN = min, fill = NA)
+BDPI$MIN_LOW_4_1 <- shift(x = BDPI$MIN_LOW_4_1, n = 1, fill = NA, type = "lag")
 
-BDPI$MAX_LOW_4_1 <- NA
+BDPI$FI1 <- ifelse (BDPI$CLOSE > BDPI$MAX_HIGH_4_1, 
+                    "BUY", 
+                    ifelse(BDPI$CLOSE < BDPI$MIN_LOW_4_1,
+                           "SELL",
+                           NA
+                           )
+                    )
 
-if (BDPI$CLOSE[5:N] > max(BDPI$HIGH)) {
-  FI1 = "BUY"
-} else {
-   if (BDPI$CLOSE < min(BDPI$LOW)) {
-    FI1 = "SELL"
-  } else {
-    FI1 = BDPI$CLOSE
-  }
-}
-
+BDPI <- fill(data = BDPI, FI1, .direction = "down")
 
 
 
