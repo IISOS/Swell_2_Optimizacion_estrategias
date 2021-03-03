@@ -121,32 +121,32 @@ BDPD <- BDPD[,
 
 # Parametrizacion fractales
 ArchivoFractales <- "Parametros fractales.xlsx"
-ParametrosFractales <- read_excel(ArchivoFractales, sheet = "Parametros fractales")
+ParamFrac <- read_excel(ArchivoFractales, sheet = "Parametros fractales")
 
-ParametrosFractales$VentanaMovil <- ParametrosFractales$`Periodo fin` - ParametrosFractales$`Periodo inicio` + 1
-ParametrosFractales$Desfase <- -ParametrosFractales$`Periodo fin`
-ParametrosFractales$NombreRefCompra <- paste0(ParametrosFractales$`Función compra`,
-                                              ParametrosFractales$`Ref. compra`,
+ParamFrac$VentanaMovil <- ParamFrac$`Periodo fin` - ParamFrac$`Periodo inicio` + 1
+ParamFrac$Desfase <- -ParamFrac$`Periodo fin`
+ParamFrac$NombreRefCompra <- paste0(ParamFrac$`Función compra`,
+                                              ParamFrac$`Ref. compra`,
                                               "_",
-                                              -ParametrosFractales$`Periodo inicio`,
+                                              -ParamFrac$`Periodo inicio`,
                                               "_",
-                                              -ParametrosFractales$`Periodo fin`)
-ParametrosFractales$NombreRefVenta <- paste0(ParametrosFractales$`Función venta`,
-                                              ParametrosFractales$`Ref. venta`,
+                                              -ParamFrac$`Periodo fin`)
+ParamFrac$NombreRefVenta <- paste0(ParamFrac$`Función venta`,
+                                              ParamFrac$`Ref. venta`,
                                               "_",
-                                              -ParametrosFractales$`Periodo inicio`,
+                                              -ParamFrac$`Periodo inicio`,
                                               "_",
-                                              -ParametrosFractales$`Periodo fin`)
-ParametrosFractales$FractalI <- ###
-ParametrosFractales$FractalI <- ###
-ParametrosFractales$VariableCompraI <- paste0("BDPI$",ParametrosFractales$`Variable compra`)
-ParametrosFractales$VariableCompraD <- paste0("BDPD$",ParametrosFractales$`Variable compra`)
-ParametrosFractales$RefCompraI <- paste0("BDPI$",ParametrosFractales$`Ref. compra`)
-ParametrosFractales$RefCompraD <- paste0("BDPD$",ParametrosFractales$`Ref. compra`)
-ParametrosFractales$VariableVentaI <- paste0("BDPI$",ParametrosFractales$`Variable venta`)
-ParametrosFractales$VariableVentaD <- paste0("BDPD$",ParametrosFractales$`Variable venta`)
-ParametrosFractales$RefVentaI <- paste0("BDPI$",ParametrosFractales$`Ref. venta`)
-ParametrosFractales$RefVentaD <- paste0("BDPD$",ParametrosFractales$`Ref. venta`)
+                                              -ParamFrac$`Periodo fin`)
+ParamFrac$FractalI <- substr(ParamFrac$Estrategia, 1, 3)
+ParamFrac$FractalD <- substr(ParamFrac$Estrategia, 7, 9)
+ParamFrac$VariableCompraI <- paste0("BDPI$",ParamFrac$`Variable compra`)
+ParamFrac$VariableCompraD <- paste0("BDPD$",ParamFrac$`Variable compra`)
+ParamFrac$RefCompraI <- paste0("BDPI$",ParamFrac$`Ref. compra`)
+ParamFrac$RefCompraD <- paste0("BDPD$",ParamFrac$`Ref. compra`)
+ParamFrac$VariableVentaI <- paste0("BDPI$",ParamFrac$`Variable venta`)
+ParamFrac$VariableVentaD <- paste0("BDPD$",ParamFrac$`Variable venta`)
+ParamFrac$RefVentaI <- paste0("BDPI$",ParamFrac$`Ref. venta`)
+ParamFrac$RefVentaD <- paste0("BDPD$",ParamFrac$`Ref. venta`)
 
 
 
@@ -160,13 +160,11 @@ eval(parse(text = y))
 
 #Para FI1 (CLOSE > max(HIGH) entre -4 y -1):
 
-BDPI$FI1 <- NA
-
 BDPI$MAX_HIGH_4_1 <- rollapplyr(data = BDPI$HIGH, width = 4, FUN = max, fill = NA)
-BDPI$MAX_HIGH_4_1 <- shift(x = BDPI$MAX_HIGH_4_1, n = 1, fill = NA, type = "lag")
+BDPI$MAX_HIGH_4_1 <- shift(x = BDPI$MAX_HIGH_4_1, n = 1, fill = NA)
 
 BDPI$MIN_LOW_4_1 <- rollapplyr(data = BDPI$LOW, width = 4, FUN = min, fill = NA)
-BDPI$MIN_LOW_4_1 <- shift(x = BDPI$MIN_LOW_4_1, n = 1, fill = NA, type = "lag")
+BDPI$MIN_LOW_4_1 <- shift(x = BDPI$MIN_LOW_4_1, n = 1, fill = NA)
 
 BDPI$FI1 <- ifelse (BDPI$CLOSE > BDPI$MAX_HIGH_4_1, 
                     "BUY", 
@@ -177,6 +175,90 @@ BDPI$FI1 <- ifelse (BDPI$CLOSE > BDPI$MAX_HIGH_4_1,
                     )
 
 BDPI <- fill(data = BDPI, FI1, .direction = "down")
+
+
+
+
+
+f <- 1
+
+
+# Cálculo de la funcion sobre la referencia para el fractal de compra.
+# Ejemplo FI1:
+# BDPI$MAX_HIGH_4_1 <- rollapplyr(data = BDPI$HIGH, width = 4, FUN = max, fill = NA)
+eval(parse(text = paste0("BDPI$", ParamFrac$NombreRefCompra[f], 
+                         " <- rollapplyr(data = ", ParamFrac$RefCompraI[f], 
+                         ", width = ", ParamFrac$VentanaMovil[f],
+                         ", FUN = ", ParamFrac$`Función compra`[f], ", fill = NA)"
+                         )
+           )
+     )
+
+# Aplicación del desfase de la ventana móvil a la serie.
+# Ejemplo FI1:
+# BDPI$MAX_HIGH_4_1 <- shift(x = BDPI$MAX_HIGH_4_1, n = 1, fill = NA)
+eval(parse(text = paste0("BDPI$", ParamFrac$NombreRefCompra[f],
+                         " <- shift(x = ", "BDPI$", ParamFrac$NombreRefCompra[f], 
+                         ", n = ", ParamFrac$Desfase[f], ", fill = NA)"
+                        )
+          )
+    )
+
+# Cálculo de la funcion sobre la referencia para el fractal de venta.
+# Ejemplo FI1:
+# BDPI$MIN_LOW_4_1 <- rollapplyr(data = BDPI$LOW, width = 4, FUN = min, fill = NA)
+eval(parse(text = paste0("BDPI$", ParamFrac$NombreRefVenta[f], 
+                         " <- rollapplyr(data = ", ParamFrac$RefVentaI[f], 
+                         ", width = ", ParamFrac$VentanaMovil[f],
+                         ", FUN = ", ParamFrac$`Función venta`[f], ", fill = NA)"
+                        )
+          )
+    )
+
+# Aplicación del desfase de la ventana móvil a la serie.
+# Ejemplo FI1:
+# BDPI$MIN_LOW_4_1 <- shift(x = BDPI$MIN_LOW_4_1, n = 1, fill = NA)
+eval(parse(text = paste0("BDPI$", ParamFrac$NombreRefVenta[f],
+                         " <- shift(x = ", "BDPI$", ParamFrac$NombreRefVenta[f], 
+                         ", n = ", ParamFrac$Desfase[f], ", fill = NA)"
+                        )
+          )
+    )
+
+# Señal del fractal.
+# Ejemplo FI1:
+# BDPI$FI1 <- ifelse (BDPI$CLOSE > BDPI$MAX_HIGH_4_1, "BUY", ifelse(BDPI$CLOSE < BDPI$MIN_LOW_4_1, "SELL", NA))
+eval(parse(text = paste0("BDPI$", ParamFrac$FractalI,
+                         "<- ifelse(",
+                                    ParamFrac$VariableCompraI, ParamFrac$`Criterio compra`, "BDPI$", ParamFrac$NombreRefCompra, 
+                                    "BUY", #Tratamiento de comillas
+                                    "ifelse(",
+                                            ParamFrac$VariableVentaI, ParamFrac$`Criterio venta`, "BDPI$", ParamFrac$NombreRefVenta, 
+                                            "SELL", #Tratamiento de comillas
+                                            "NA",
+                                           ")",
+                                   ")"
+                        )
+          )
+    )
+
+
+
+BDPI$FI1 <- ifelse (BDPI$CLOSE > BDPI$MAX_HIGH_4_1, 
+                    "BUY", 
+                    ifelse(BDPI$CLOSE < BDPI$MIN_LOW_4_1,
+                           "SELL",
+                           NA
+                           )
+                    )
+
+BDPI <- fill(data = BDPI, FI1, .direction = "down")
+
+
+
+
+
+
 
 
 
