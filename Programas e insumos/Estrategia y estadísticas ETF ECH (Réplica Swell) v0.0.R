@@ -66,7 +66,11 @@ for (L in Libraries) {
                             "')
                             library(",
                             L,
-                            ")"))))
+                            ")"
+                            )
+                     )
+             )
+       )
 }
 
 # Ubicación archivos de origen
@@ -186,10 +190,10 @@ f <- 1
 # Cálculo de la funcion sobre la referencia para el fractal de compra.
 # Ejemplo FI1:
 # BDPI$MAX_HIGH_4_1 <- rollapplyr(data = BDPI$HIGH, width = 4, FUN = max, fill = NA)
-eval(parse(text = paste0("BDPI$", ParamFrac$NombreRefCompra[f], 
-                         " <- rollapplyr(data = ", ParamFrac$RefCompraI[f], 
-                         ", width = ", ParamFrac$VentanaMovil[f],
-                         ", FUN = ", ParamFrac$`Función compra`[f], ", fill = NA)"
+eval(parse(text = paste0("BDPI$", ParamFrac$NombreRefCompra, 
+                         " <- rollapplyr(data = ", ParamFrac$RefCompraI, 
+                         ", width = ", ParamFrac$VentanaMovil,
+                         ", FUN = ", ParamFrac$`Función compra`, ", fill = NA)"
                          )
            )
      )
@@ -197,9 +201,9 @@ eval(parse(text = paste0("BDPI$", ParamFrac$NombreRefCompra[f],
 # Aplicación del desfase de la ventana móvil a la serie.
 # Ejemplo FI1:
 # BDPI$MAX_HIGH_4_1 <- shift(x = BDPI$MAX_HIGH_4_1, n = 1, fill = NA)
-eval(parse(text = paste0("BDPI$", ParamFrac$NombreRefCompra[f],
-                         " <- shift(x = ", "BDPI$", ParamFrac$NombreRefCompra[f], 
-                         ", n = ", ParamFrac$Desfase[f], ", fill = NA)"
+eval(parse(text = paste0("BDPI$", ParamFrac$NombreRefCompra,
+                         " <- shift(x = ", "BDPI$", ParamFrac$NombreRefCompra, 
+                         ", n = ", ParamFrac$Desfase, ", fill = NA)"
                         )
           )
     )
@@ -207,10 +211,10 @@ eval(parse(text = paste0("BDPI$", ParamFrac$NombreRefCompra[f],
 # Cálculo de la funcion sobre la referencia para el fractal de venta.
 # Ejemplo FI1:
 # BDPI$MIN_LOW_4_1 <- rollapplyr(data = BDPI$LOW, width = 4, FUN = min, fill = NA)
-eval(parse(text = paste0("BDPI$", ParamFrac$NombreRefVenta[f], 
-                         " <- rollapplyr(data = ", ParamFrac$RefVentaI[f], 
-                         ", width = ", ParamFrac$VentanaMovil[f],
-                         ", FUN = ", ParamFrac$`Función venta`[f], ", fill = NA)"
+eval(parse(text = paste0("BDPI$", ParamFrac$NombreRefVenta, 
+                         " <- rollapplyr(data = ", ParamFrac$RefVentaI, 
+                         ", width = ", ParamFrac$VentanaMovil,
+                         ", FUN = ", ParamFrac$`Función venta`, ", fill = NA)"
                         )
           )
     )
@@ -218,9 +222,9 @@ eval(parse(text = paste0("BDPI$", ParamFrac$NombreRefVenta[f],
 # Aplicación del desfase de la ventana móvil a la serie.
 # Ejemplo FI1:
 # BDPI$MIN_LOW_4_1 <- shift(x = BDPI$MIN_LOW_4_1, n = 1, fill = NA)
-eval(parse(text = paste0("BDPI$", ParamFrac$NombreRefVenta[f],
-                         " <- shift(x = ", "BDPI$", ParamFrac$NombreRefVenta[f], 
-                         ", n = ", ParamFrac$Desfase[f], ", fill = NA)"
+eval(parse(text = paste0("BDPI$", ParamFrac$NombreRefVenta,
+                         " <- shift(x = ", "BDPI$", ParamFrac$NombreRefVenta, 
+                         ", n = ", ParamFrac$Desfase, ", fill = NA)"
                         )
           )
     )
@@ -229,13 +233,13 @@ eval(parse(text = paste0("BDPI$", ParamFrac$NombreRefVenta[f],
 # Ejemplo FI1:
 # BDPI$FI1 <- ifelse (BDPI$CLOSE > BDPI$MAX_HIGH_4_1, "BUY", ifelse(BDPI$CLOSE < BDPI$MIN_LOW_4_1, "SELL", NA))
 eval(parse(text = paste0("BDPI$", ParamFrac$FractalI,
-                         "<- ifelse(",
-                                    ParamFrac$VariableCompraI, ParamFrac$`Criterio compra`, "BDPI$", ParamFrac$NombreRefCompra, 
-                                    "BUY", #Tratamiento de comillas
-                                    "ifelse(",
-                                            ParamFrac$VariableVentaI, ParamFrac$`Criterio venta`, "BDPI$", ParamFrac$NombreRefVenta, 
-                                            "SELL", #Tratamiento de comillas
-                                            "NA",
+                         " <- ifelse(",
+                                     ParamFrac$VariableCompraI, ParamFrac$`Criterio compra`, "BDPI$", ParamFrac$NombreRefCompra, 
+                                     ", 'BUY', ",
+                                     "ifelse(",
+                                             ParamFrac$VariableVentaI, ParamFrac$`Criterio venta`, "BDPI$", ParamFrac$NombreRefVenta, 
+                                             ", 'SELL', ",
+                                             "NA",
                                            ")",
                                    ")"
                         )
