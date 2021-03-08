@@ -108,7 +108,7 @@ BDPI <- BDPI[order(BDPI$DATEFRAME),]
 
 # 3. CÁLCULO SEÑALES ##########################################################
 
-# Insumos parametrización FI y FD
+# Insumos parametrización FI
 ArchivoFractales <- "Parametros fractales.xlsx"
 ParamFracI <- read_excel(ArchivoFractales, sheet = "Parametros fractales")
 
@@ -155,71 +155,6 @@ ParamFracR$Fractal <- ParamFracR$Estrategia # Réplica de nombres para FIR
 # eval(parse(text = y))
 
 
-# Cálculo de la funcion sobre la referencia correspondiente a cada fractal de compra.
-# Ejemplo FI1:
-# BDPI$FI1_B_MAX_HIGH_4_1 <- rollapplyr(data = BDPI$HIGH, width = 4, FUN = max, fill = NA)
-eval(parse(text = paste0("BDPI$", ParamFracI$NombreRefCompra, 
-                         " <- rollapplyr(data = ", ParamFracI$RefCompra, 
-                         ", width = ", ParamFracI$VentanaMovil,
-                         ", FUN = ", ParamFracI$`Función compra`, ", fill = NA)"
-                         )
-           )
-     )
-
-# Aplicación del desfase de la ventana móvil correspondiente a cada fractal de compra.
-# Ejemplo FI1:
-# BDPI$FI1_B_MAX_HIGH_4_1 <- shift(x = BDPI$MAX_HIGH_4_1, n = 1, fill = NA)
-eval(parse(text = paste0("BDPI$", ParamFracI$NombreRefCompra,
-                         " <- shift(x = ", "BDPI$", ParamFracI$NombreRefCompra, 
-                         ", n = ", ParamFracI$Desfase, ", fill = NA)"
-                        )
-          )
-    )
-
-# Cálculo de la funcion sobre la referencia correspondiente a cada fractal de venta.
-# Ejemplo FI1:
-# BDPI$FI1_S_MIN_LOW_4_1 <- rollapplyr(data = BDPI$LOW, width = 4, FUN = min, fill = NA)
-eval(parse(text = paste0("BDPI$", ParamFracI$NombreRefVenta, 
-                         " <- rollapplyr(data = ", ParamFracI$RefVenta, 
-                         ", width = ", ParamFracI$VentanaMovil,
-                         ", FUN = ", ParamFracI$`Función venta`, ", fill = NA)"
-                        )
-          )
-    )
-
-# Aplicación del desfase de la ventana móvil correspondiente a cada fractal de venta.
-# Ejemplo FI1:
-# BDPI$FI1_S_MIN_LOW_4_1 <- shift(x = BDPI$MIN_LOW_4_1, n = 1, fill = NA)
-eval(parse(text = paste0("BDPI$", ParamFracI$NombreRefVenta,
-                         " <- shift(x = ", "BDPI$", ParamFracI$NombreRefVenta, 
-                         ", n = ", ParamFracI$Desfase, ", fill = NA)"
-                        )
-          )
-    )
-
-# Señal del fractal.
-# Ejemplo FI1:
-# BDPI$FI1 <- ifelse (BDPI$CLOSE > BDPI$FI1_B_MAX_HIGH_4_1, "BUY", ifelse(BDPI$CLOSE < BDPI$FI1_S_MIN_LOW_4_1, "SELL", NA))
-eval(parse(text = paste0("BDPI$", ParamFracI$Fractal,
-                         " <- ifelse(",
-                                     ParamFracI$VariableCompra, ParamFracI$`Criterio compra`, "BDPI$", ParamFracI$NombreRefCompra, 
-                                     ", 'BUY', ",
-                                     "ifelse(",
-                                             ParamFracI$VariableVenta, ParamFracI$`Criterio venta`, "BDPI$", ParamFracI$NombreRefVenta, 
-                                             ", 'SELL', ",
-                                             "NA",
-                                           ")",
-                                   ")"
-                        )
-          )
-    )
-
-  
-
-
-
-
-
 
 #Para FI1 (CLOSE > max(HIGH) entre -4 y -1):
 
@@ -238,13 +173,6 @@ BDPI$FI1 <- ifelse (BDPI$CLOSE > BDPI$MAX_HIGH_4_1,
 )
 
 BDPI <- fill(data = BDPI, FI1, .direction = "down")
-
-
-
-
-
-
-
 
 
 
