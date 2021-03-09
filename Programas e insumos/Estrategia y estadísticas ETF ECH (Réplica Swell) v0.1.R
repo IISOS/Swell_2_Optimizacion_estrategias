@@ -192,18 +192,18 @@ eval(parse(text = FunDesfaseVenta))
 
 # Señal para condiciones de "BUY" o "SELL" en cada fractal intradiario. Ejemplo FI1:
 # BDPI$FI1 <- ifelse (BDPI$CLOSE > BDPI$FI1_B_max_HIGH_4_1, "BUY", ifelse(BDPI$CLOSE < BDPI$FI1_S_min_LOW_4_1, "SELL", NA))
-FunSenFrac <- paste0("BDPI$", ParamFracI$Fractal,
-                     " <- ifelse(",
-                                 ParamFracI$VariableCompra, ParamFracI$`Criterio compra`, "BDPI$", ParamFracI$NombreRefCompra, 
-                                 ", 'BUY', ",
-                                 "ifelse(",
-                                         ParamFracI$VariableVenta, ParamFracI$`Criterio venta`, "BDPI$", ParamFracI$NombreRefVenta, 
-                                         ", 'SELL', ",
-                                         "NA",
-                                        ")",
-                                ")"
+FunSenFIX <- paste0("BDPI$", ParamFracI$Fractal,
+                    " <- ifelse(",
+                                ParamFracI$VariableCompra, ParamFracI$`Criterio compra`, "BDPI$", ParamFracI$NombreRefCompra, 
+                                ", 'BUY', ",
+                                "ifelse(",
+                                        ParamFracI$VariableVenta, ParamFracI$`Criterio venta`, "BDPI$", ParamFracI$NombreRefVenta, 
+                                        ", 'SELL', ",
+                                        "NA",
+                                      ")",
+                              ")"
                     )
-eval(parse(text = FunSenFrac))
+eval(parse(text = FunSenFIX))
 
 # Señal para cada fractal intradiario cuando no se cumplen las condiciones de "BUY" o "SELL".
 BDPI <- fill(data = BDPI, ParamFracI$Fractal, .direction = "down")
@@ -268,7 +268,7 @@ ParamFracD$RefVenta <- paste0("BDPD$",ParamFracD$`Ref. venta`)
 
 # Separación entre parámetros para FIR y para FD
 ParamFracR <- ParamFracD[match(paste0(LetraFIR,(1:NFrac)),ParamFracD$Estrategia),]
-ParamFracR$Fractal <- ParamFracR$Estrategia # Réplica de nombres para FIR
+ParamFracR$Fractal <- paste0("FI", ParamFracR$Estrategia) # Asignación de de nombres para FIRX
 ParamFracD <- ParamFracD[-match(paste0(LetraFIR,(1:NFrac)),ParamFracD$Estrategia),] # Eliminación parámetros creados para FIRX.
 ParamFracR$VariableCompra <- paste0("BDPI$",ParamFracD$`Variable compra`)
 ParamFracR$VariableVenta <- paste0("BDPI$",ParamFracD$`Variable venta`)
@@ -308,86 +308,73 @@ eval(parse(text = FunFracVenta))
 # Aplicación del desfase de la ventana móvil correspondiente a cada fractal
 # diario de venta. Ejemplo FD1:
 # BDPD$FD1_S_min_LOW_4_1 <- shift(x = BDPD$FD1_S_min_LOW_4_1, n = 1, fill = NA)
-FunDesfaseVenta <-paste0("BDPD$", ParamFracD$NombreRefVenta,
-                         " <- shift(x = ", "BDPD$", ParamFracD$NombreRefVenta, 
-                         ", n = ", ParamFracD$Desfase, ", fill = NA)"
-                        ) 
+FunDesfaseVenta <- paste0("BDPD$", ParamFracD$NombreRefVenta,
+                          " <- shift(x = ", "BDPD$", ParamFracD$NombreRefVenta, 
+                          ", n = ", ParamFracD$Desfase, ", fill = NA)"
+                         ) 
 eval(parse(text = FunDesfaseVenta))
 
 # Señal para condiciones de "BUY" o "SELL" en cada fractal diario. Ejemplo FD1:
 # BDPD$FD1 <- ifelse (BDPD$CLOSE > BDPD$FD1_B_max_HIGH_4_1, "BUY", ifelse(BDPD$CLOSE < BDPD$FD1_S_min_LOW_4_1, "SELL", NA))
-FunSenFrac <- paste0("BDPD$", ParamFracD$Fractal,
-                     " <- ifelse(",
-                                 ParamFracD$VariableCompra, ParamFracD$`Criterio compra`, "BDPD$", ParamFracD$NombreRefCompra, 
-                                 ", 'BUY', ",
-                                 "ifelse(",
-                                         ParamFracD$VariableVenta, ParamFracD$`Criterio venta`, "BDPD$", ParamFracD$NombreRefVenta, 
-                                         ", 'SELL', ",
-                                         "NA",
-                                       ")",
-                               ")"
+FunSenFDX <- paste0("BDPD$", ParamFracD$Fractal,
+                    " <- ifelse(",
+                                ParamFracD$VariableCompra, ParamFracD$`Criterio compra`, "BDPD$", ParamFracD$NombreRefCompra, 
+                                ", 'BUY', ",
+                                "ifelse(",
+                                        ParamFracD$VariableVenta, ParamFracD$`Criterio venta`, "BDPD$", ParamFracD$NombreRefVenta, 
+                                        ", 'SELL', ",
+                                        "NA",
+                                      ")",
+                              ")"
                     )
-eval(parse(text = FunSenFrac))
+eval(parse(text = FunSenFDX))
 
 # Señal para cada fractal diario cuando no se cumplen las condiciones de "BUY" o "SELL".
 BDPD <- fill(data = BDPD, ParamFracD$Fractal, .direction = "down")
 
 
-# 8. CÁLCULO SEÑALES DE FRACTALES INTRADIARIOS DE REFERENCIA ##################
-
-# AQUI VAMOS ##################################################################
-# Vamos a calcular los FIR en BDPD y los vamos importar BDPI.
+# 8. CÁLCULO FUNCIONES SOBRE REFERENCIAS DE FRACTALES DIARIOS DE REFERENCIA ####
 
 # Cálculo de la función sobre la referencia correspondiente a cada fractal
-# diario de referencia de compra.Ejemplo FD1:
-# BDPD$FIR1_B_max_HIGH_4_1 <- rollapplyr(data = BDPD$HIGH, width = 4, FUN = max, fill = NA)
+# diario de referencia de compra.Ejemplo FDR1:
+# BDPD$FDR1_B_max_HIGH_4_1 <- rollapplyr(data = BDPD$HIGH, width = 4, FUN = max, fill = NA)
 FunFracCompra <- paste0("BDPD$", ParamFracR$NombreRefCompra, 
                         " <- rollapplyr(data = ", ParamFracR$RefCompra, 
                         ", width = ", ParamFracR$VentanaMovil,
                         ", FUN = ", ParamFracR$`Función compra`, ", fill = NA)"
-)
+                       )
 eval(parse(text = FunFracCompra))
 
 # Aplicación del desfase de la ventana móvil correspondiente a cada fractal
-# diario de referencia de compra.Ejemplo FD1:
-# BDPD$FD1_B_max_HIGH_4_1 <- shift(x = BDPD$FD1_B_max_HIGH_4_1, n = 1, fill = NA)
-FunDesfaseCompra <- paste0("BDPD$", ParamFracD$NombreRefCompra,
-                           " <- shift(x = ", "BDPD$", ParamFracD$NombreRefCompra, 
-                           ", n = ", ParamFracD$Desfase, ", fill = NA)"
-)
+# diario de referencia de compra.Ejemplo FDR1:
+# BDPD$FDR1_B_max_HIGH_4_1 <- shift(x = BDPD$FD1_B_max_HIGH_4_1, n = 1, fill = NA)
+FunDesfaseCompra <- paste0("BDPD$", ParamFracR$NombreRefCompra,
+                           " <- shift(x = ", "BDPD$", ParamFracR$NombreRefCompra, 
+                           ", n = ", ParamFracR$Desfase, ", fill = NA)"
+                          )
 eval(parse(text = FunDesfaseCompra))
 
 # Cálculo de la función sobre la referencia correspondiente a cada fractal
-# diario de referencia de venta. Ejemplo FD1:
-# BDPD$FD1_S_min_LOW_4_1 <- rollapplyr(data = BDPD$LOW, width = 4, FUN = min, fill = NA)
-FunFracVenta <- paste0("BDPD$", ParamFracD$NombreRefVenta, 
-                       " <- rollapplyr(data = ", ParamFracD$RefVenta, 
-                       ", width = ", ParamFracD$VentanaMovil,
-                       ", FUN = ", ParamFracD$`Función venta`, ", fill = NA)"
-)
+# diario de referencia de venta. Ejemplo FDR1:
+# BDPD$FDR1_S_min_LOW_4_1 <- rollapplyr(data = BDPD$LOW, width = 4, FUN = min, fill = NA)
+FunFracVenta <- paste0("BDPD$", ParamFracR$NombreRefVenta, 
+                       " <- rollapplyr(data = ", ParamFracR$RefVenta, 
+                       ", width = ", ParamFracR$VentanaMovil,
+                       ", FUN = ", ParamFracR$`Función venta`, ", fill = NA)"
+                      )
 eval(parse(text = FunFracVenta))
 
 # Aplicación del desfase de la ventana móvil correspondiente a cada fractal
-# diario de referencia de venta. Ejemplo FD1:
-# BDPD$FD1_S_min_LOW_4_1 <- shift(x = BDPD$FD1_S_min_LOW_4_1, n = 1, fill = NA)
-FunDesfaseVenta <-paste0("BDPD$", ParamFracD$NombreRefVenta,
-                         " <- shift(x = ", "BDPD$", ParamFracD$NombreRefVenta, 
-                         ", n = ", ParamFracD$Desfase, ", fill = NA)"
-) 
+# diario de referencia de venta. Ejemplo FDR1:
+# BDPD$FDR1_S_min_LOW_4_1 <- shift(x = BDPD$FDR1_S_min_LOW_4_1, n = 1, fill = NA)
+FunDesfaseVenta <-paste0("BDPD$", ParamFracR$NombreRefVenta,
+                         " <- shift(x = ", "BDPD$", ParamFracR$NombreRefVenta, 
+                         ", n = ", ParamFracR$Desfase, ", fill = NA)"
+                        ) 
 eval(parse(text = FunDesfaseVenta))
 
 
-
-
-
-
-
-
-
-
-
-
-
+# 9. CÁLCULO SEÑALES DE FRACTALES INTRADIARIOS DE REFERENCIA ##################
 
 # Identificación de fecha
 BDPI$DATE <- NA
@@ -397,231 +384,181 @@ BDPI$DATE <- make_datetime(year = year(BDPI$DATEFRAME),
                           )
 
 # Importe a la base de datos intradiaria de la función sobre la referencia 
-# correspondiente a cada fractal diario de compra. Ejemplo FIR1: 
-# BDPI$FIR1_B_max_HIGH_4_1 <- BDPD$FD1_B_max_HIGH_4_1[match(as.Date(BDPI$DATE), BDPD$DATE)]
+# correspondiente a cada fractal diario de referencia de venta. Ejemplo FDR1: 
+# BDPI$FDR1_B_max_HIGH_4_1 <- BDPD$FDR1_B_max_HIGH_4_1[match(as.Date(BDPI$DATE), BDPD$DATE)]
+FunImporteFDRCompra <- paste0("BDPI$", ParamFracR$NombreRefCompra,
+                              " <- BDPD$", ParamFracR$NombreRefCompra,
+                              "[match(as.Date(BDPI$DATE), BDPD$DATE)]"
+                             )
+eval(parse(text = FunImporteFDRCompra))
 
+# Importe a la base de datos intradiaria de la función sobre la referencia 
+# correspondiente a cada fractal diario de referencia de compra. Ejemplo FDR1: 
+# BDPI$FDR1_S_min_LOW_4_1 <- BDPD$FDR1_S_min_LOW_4_1[match(as.Date(BDPI$DATE), BDPD$DATE)]
+FunImporteFDRVenta <- paste0("BDPI$", ParamFracR$NombreRefVenta,
+                             " <- BDPD$", ParamFracR$NombreRefVenta,
+                             "[match(as.Date(BDPI$DATE), BDPD$DATE)]"
+                            )
+eval(parse(text = FunImporteFDRVenta))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Señal para condiciones de "BUY" o "SELL" en cada fractal intradiario. Ejemplo FI1:
-# BDPI$FIR1 <- ifelse (BDPI$CLOSE > BDPI$FIR1_B_max_HIGH_4_1, "BUY", ifelse(BDPI$CLOSE < BDPI$FIR1_S_min_LOW_4_1, "SELL", NA))
-FunSenFrac <- paste0("BDPI$", ParamFracI$Fractal,
+# Señal para condiciones de "BUY" o "SELL" en cada fractal intradiario de
+# referencia. Ejemplo FIR1:
+# BDPI$FIR1 <- ifelse (BDPI$CLOSE > BDPI$FDR1_B_max_HIGH_4_1, "BUY", ifelse(BDPI$CLOSE < BDPI$FDR1_S_min_LOW_4_1, "SELL", NA))
+FunSenFIRX_BS <- paste0("BDPI$", ParamFracR$Fractal,
                      " <- ifelse(",
-                     ParamFracI$VariableCompra, ParamFracI$`Criterio compra`, "BDPI$", ParamFracI$NombreRefCompra, 
-                     ", 'BUY', ",
-                     "ifelse(",
-                     ParamFracI$VariableVenta, ParamFracI$`Criterio venta`, "BDPI$", ParamFracI$NombreRefVenta, 
-                     ", 'SELL', ",
-                     "NA",
-                     ")",
-                     ")"
-)
-eval(parse(text = FunSenFrac))
+                                 ParamFracR$VariableCompra, ParamFracR$`Criterio compra`, "BDPI$", ParamFracR$NombreRefCompra, 
+                                 ", 'BUY', ",
+                                 "ifelse(",
+                                         ParamFracR$VariableVenta, ParamFracR$`Criterio venta`, "BDPI$", ParamFracR$NombreRefVenta, 
+                                         ", 'SELL', ",
+                                         "NA",
+                                       ")",
+                               ")"
+                    )
+eval(parse(text = FunSenFIRX_BS))
 
-# Señal para cada fractal intradiario cuando no se cumplen las condiciones de "BUY" o "SELL".
-BDPI <- fill(data = BDPI, ParamFracI$Fractal, .direction = "down")
+# Aplicación de un desfase a cada fractal diario para su asignación a FIRX
+# cuando no se cumplen las condiciones de "BUY" o "SELL". Ejemplo FD1_NoBS:
+# BDPD$FD1_NoBS <- shift(x = BDPD$FD1, n = DesfaseNoBS, fill = NA)
+DesfaseNoBS <- 1
+FunSenFDX_NoBS <- paste0("BDPD$", ParamFracD$Fractal, "_NoBS",
+                         " <- shift(",
+                                    "x = ", "BDPD$", ParamFracD$Fractal,
+                                    ", ",
+                                    "n = ", DesfaseNoBS,
+                                    ", ",
+                                    "fill = NA",
+                                  ")"
+                        ) 
+eval(parse(text = FunSenFDX_NoBS))
 
+# Señal para cada fractal intradiario de referencia cuando no se cumplen las
+# condiciones de "BUY" o "SELL". 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-# 4. POSICIÓN Y VALORACIÓN ####################################################
-
-# Volumen de posición de entrada (VOL_PE),  límites de la estrategia y % de cierre parcial
-VOL_ENTRADA <- 100         # Volumnen de posición de entrada
-LminPA_V_PE <- 0.025       # Límite mínimo de precio apertura (PA) frente a precio entrada
-LminPmin_V_PE <- 0.025     # Límite mínimo de precio mínimo (Pmin) frente a precio entrada 
-LmedioPA_V_PE <- 0.015     # Límite medio de precio apertura (PA) frente a precio entrada
-LmedioPmin_V_PE <- 0.015   # Límite medio de precio mínimo (Pmin) frente a precio entrada
-LmedioPmax_V_PE <- 0.015   # Límite medio de precio máximo (Pmax) frente a precio entrada
-PORC_CIERRE_PARCIAL <- 0.5 # Porcentaje de cierre parcial de posiciones
-
-# Signos de posiciones cortas o largas para las señales
-BDP$SENALSIGNO[BDP$SENAL=="BUY"] <- 1
-BDP$SENALSIGNO[BDP$SENAL=="SELL"] <- -1
-
-# Columnas para precio de entrada (P_ENTRADA), volumen y valor de posición inicial y final
-# (VOL_POSINICIAL, VOL_POSFINAL, VAL_POSINICIAL y VAL_POSFINAL), volumen y valor de compras
-# y ventas (VOL_COMPRAS, VOL_VENTAS, VAL_COMPRAS y VAL_VENTAS)
-BDP$P_ENTRADA <- c(BDP$CLOSE[1], rep(0, (N-1)))
-BDP$VOL_POSINICIAL <- NA
-BDP$VAL_POSINICIAL <- NA
-BDP$VOL_COMPRAS <- c((VOL_ENTRADA), rep(NA, (N-1)))
-BDP$VAL_COMPRAS <- c((VOL_ENTRADA*BDP$P_ENTRADA[1]), rep(NA, (N-1)))
-BDP$VOL_VENTAS <- c(0, rep(NA, (N-1)))
-BDP$VAL_VENTAS <- c(0, rep(NA, (N-1)))
-BDP$VOL_POSFINAL <- c(VOL_ENTRADA, rep(NA, (N-1)))
-BDP$VAL_POSFINAL <- c((VOL_ENTRADA*BDP$CLOSE[1]), rep(NA, (N-1)))
-BDP$EFECTIVO <- c(0, rep(NA, (N-1)))
-BDP$VAL_PORT <- c((BDP$VOL_POSFINAL[1]*BDP$CLOSE[1]), rep(NA, (N-1)))
-
-# Cálculo de posición y valoración inicial y final, volumen y valoración de ventas y compras,
-# precio de entrada y valoración de efectivo y portafolio
-for (d in 2:N) {
-  
-  BDP$VOL_POSINICIAL[d] <- BDP$VOL_POSFINAL[d-1]
-  BDP$VAL_POSINICIAL[d] <- BDP$VAL_POSFINAL[d-1]
-  
-  if (BDP$SENAL[d] != BDP$SENAL[d-1]) { # Si la señal cambia:
-    
-    BDP$VOL_VENTAS[d] <- BDP$VOL_POSINICIAL[d]
-    BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * BDP$CLOSE[d]
-    BDP$P_ENTRADA[d] <- BDP$CLOSE[d]
-    BDP$VAL_COMPRAS[d] <- BDP$EFECTIVO[d-1] + BDP$VAL_VENTAS[d]
-    BDP$VOL_COMPRAS[d] <- BDP$VAL_COMPRAS[d] / BDP$P_ENTRADA[d]
-    
-  } else { # Si la señal NO cambia:
-    
-    if (BDP$VOL_POSINICIAL[d] != 0) {# Si hay posición
-      
-      BDP$VAL_COMPRAS[d] <- 0
-      BDP$VOL_COMPRAS[d] <- 0
-      
-      if (((BDP$OPEN[d]/BDP$P_ENTRADA[d-1])-1) <= -LminPA_V_PE) { # Si PA≤0,975*PE:
-        # Corto SiPA>=1.025*PE 
-        
-        BDP$VOL_VENTAS[d] <- BDP$VOL_POSINICIAL[d]   # Cierro toda la posición
-        BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * BDP$OPEN[d]   # Cierro a PA
-        BDP$P_ENTRADA[d] <- NA
-        
-      } else { # Si PA>0,975*PE:
-        
-        if (((BDP$OPEN[d]/BDP$P_ENTRADA[d-1])-1) <= -LmedioPA_V_PE) {# Si PA≤0,985*PE:
-          
-          BDP$VOL_VENTAS[d] <- PORC_CIERRE_PARCIAL * BDP$VOL_POSINICIAL[d]  #Cierro parcial (50%)
-          BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * BDP$OPEN[d]   #Cierro a PA    
-          BDP$P_ENTRADA[d] <- BDP$P_ENTRADA[d-1]
-          
-          if (((BDP$LOW[d]/BDP$P_ENTRADA[d-1])-1) <= -LminPmin_V_PE) {# Si PMin≤0,975*PE:
-            
-            BDP$VOL_VENTAS[d] <- BDP$VOL_VENTAS[d] + (1 - PORC_CIERRE_PARCIAL) * BDP$VOL_POSINICIAL[d]    # Termino de cerrar posición
-            BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * ((1-LminPmin_V_PE) * BDP$P_ENTRADA[d])  # Cierro a PE
-            BDP$P_ENTRADA[d] <- NA   
-            
-          } else {# Si PMin>0,975*PE:
-            
-            if (((BDP$HIGH[d]/BDP$P_ENTRADA[d-1])-1) >= LmedioPmax_V_PE) {# Si Pmax≥1,015*PE 
-              
-              BDP$VOL_VENTAS[d] <- BDP$VOL_VENTAS[d] + (1 - PORC_CIERRE_PARCIAL) * BDP$VOL_POSINICIAL[d]   # Termino de cerrar posición
-              BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * ((1+LmedioPmax_V_PE) * BDP$P_ENTRADA[d])   # Cierro a PE
-              BDP$P_ENTRADA[d] <- NA
-              
-            } else {# Si Pmax<1,015*PE, se mantiene 50% de posición abierta
-              
-              # No se requiere registrar nada más.
-              
-            }
-            
-          }
-          
-        } else {
-          
-          if (((BDP$OPEN[d]/BDP$P_ENTRADA[d-1])-1) <= LmedioPA_V_PE) {# Si PA≤1,015*PE 
-            
-            if (((BDP$LOW[d]/BDP$P_ENTRADA[d-1])-1) <= -LminPmin_V_PE) {# Si PMin≤0,975*PE 
-              
-              BDP$VOL_VENTAS[d] <- BDP$VOL_POSINICIAL[d]   
-              BDP$VAL_VENTAS[d] <- 0.5 * BDP$VOL_VENTAS[d] * ((1-LmedioPmin_V_PE) * BDP$P_ENTRADA[d])
-              + 0.5 * BDP$VOL_VENTAS[d] * ((1-LminPmin_V_PE) * BDP$P_ENTRADA[d])
-              BDP$P_ENTRADA[d] <- NA
-              
-            } else {# Si PMin>0,975*PE
-              
-              if (((BDP$LOW[d]/BDP$P_ENTRADA[d-1])-1) <= -LmedioPmin_V_PE) {# Si PMin≤0,985*PE
-                
-                BDP$VOL_VENTAS[d] <- PORC_CIERRE_PARCIAL * BDP$VOL_POSINICIAL[d]
-                BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * ((1-LmedioPmin_V_PE) * BDP$P_ENTRADA[d])
-                BDP$P_ENTRADA[d] <- BDP$P_ENTRADA[d-1]
-                
-              } else {# Si PMin>0,985*PE
-                
-                if (((BDP$HIGH[d]/BDP$P_ENTRADA[d-1])-1) >= LmedioPmax_V_PE) {# Si Pmax≥1,015*PE
-                  
-                  BDP$VOL_VENTAS[d] <- PORC_CIERRE_PARCIAL * BDP$VOL_POSINICIAL[d]
-                  BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * ((1+LmedioPmax_V_PE) * BDP$P_ENTRADA[d])
-                  BDP$P_ENTRADA[d] <- BDP$P_ENTRADA[d-1]
-                  
-                } else {# Si Pmax<1,015*PE, se mantiene 100% de posición abierta
-                  
-                  BDP$VOL_VENTAS[d] <- 0
-                  BDP$VAL_VENTAS[d] <- 0
-                  BDP$P_ENTRADA[d] <- BDP$P_ENTRADA[d-1]
-                  
-                }
-                
-              }
-              
-            }
-            
-          } else {
-            
-            BDP$VOL_VENTAS[d] <- PORC_CIERRE_PARCIAL * BDP$VOL_POSINICIAL[d]
-            BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * BDP$OPEN[d]
-            BDP$P_ENTRADA[d] <- BDP$P_ENTRADA[d-1]
-            
-            if (BDP$LOW[d] <= BDP$P_ENTRADA[d]) {# Si PMin≤PE:
-              
-              BDP$VOL_VENTAS[d] <- BDP$VOL_VENTAS[d] + (1 - PORC_CIERRE_PARCIAL) * BDP$VOL_POSINICIAL[d]
-              BDP$VAL_VENTAS[d] <- BDP$VOL_VENTAS[d] * BDP$P_ENTRADA[d]
-              BDP$P_ENTRADA[d] <- NA
-              
-            } else {# Si PMin>PE, se mantiene 50% de posición abierta:
-              
-              # No se requiere registrar nada más.
-              
-            }
-            
-          }
-          
-        }
-        
-      }
-      
-    } else {
-      
-      BDP$VAL_COMPRAS[d] <- 0
-      BDP$VOL_COMPRAS[d] <- 0
-      BDP$VOL_VENTAS[d] <- 0
-      BDP$VAL_VENTAS[d] <- 0
-      BDP$P_ENTRADA[d] <- BDP$P_ENTRADA[d-1]
-      
-    }
-    
-  }
-  
-  BDP$VOL_POSFINAL[d] <- BDP$VOL_POSINICIAL[d] + BDP$VOL_COMPRAS[d] - BDP$VOL_VENTAS[d]
-  BDP$VAL_POSFINAL[d] <- BDP$VOL_POSFINAL[d] * BDP$CLOSE[d]
-  BDP$EFECTIVO[d] <- BDP$EFECTIVO[d-1] + BDP$VAL_VENTAS[d] - BDP$VAL_COMPRAS[d]
-  BDP$VAL_PORT[d] <- BDP$VAL_POSFINAL[d] + BDP$EFECTIVO[d]
-  
-}
+# Importe de señal diaria empleada cuando no se cumplen las condiciones de
+# "BUY" o "SELL", desde base de datos diaria a base de datos intradiaria.
+# Ejemplo importe FD1_NoBS:
+# BDPI$FD1_NoBS <- BDPD$FD1_NoBS[match(BDPI$DATE, BDPD$DATE)]
+FunSenFDX_NoBS_I <- paste0("BDPI$", ParamFracD$Fractal, "_NoBS",
+                           " <- BDPD$", ParamFracD$Fractal, "_NoBS",
+                           "[match(as.Date(BDPI$DATE), BDPD$DATE)]"
+                          )
+eval(parse(text = FunSenFDX_NoBS_I))
+# Ejemplo asignación a FIR1 de señal diaria empleada cuando no se cumplen las
+# condiciones de "BUY" o "SELL":
+# BDPI$FIR1 <- ifelse(is.na(BDPI$FIR1), BDPI$FD1_NoBS, BDPI$FIR1)
+FunSenFIRX <- paste0("BDPI$", ParamFracR$Fractal,
+                     " <- ifelse(",
+                                 "is.na(", "BDPI$", ParamFracR$Fractal, ")",
+                                 ", ",
+                                 "BDPI$", ParamFracD$Fractal, "_NoBS",
+                                 ", ",
+                                 "BDPI$", ParamFracR$Fractal,
+                               ")"
+                    )
+eval(parse(text = FunSenFIRX))
 
 
-# 5. CÁLCULO ESTADÍSTICAS #####################################################
+# 10. CÁLCULO SEÑAL INTRADIARIA FINAL #########################################
+
+Senales <- data.frame(NombreBD = rep(NA, NFrac^2),
+                      I = rep(1:NFrac,rep(NFrac, NFrac)),
+                      R = rep(1:NFrac, NFrac),
+                      FI = paste0("FI",rep(1:NFrac,rep(NFrac, NFrac))),
+                      FIR = paste0("FIR", rep(1:NFrac, NFrac))
+                     )
+Senales$NombreBD <- paste0("BDP_I", Senales$I, "_R", Senales$R)
+
+FunBDPSList <- paste0("BDP_I1_R1",
+                      " <- BDPI[,",
+                                ",",
+                                "match(",
+                                       "c('DATE'", 
+                                          "'DATEFRAME'", 
+                                          "'VOLUME'", 
+                                          "'OPEN'", 
+                                          "'HIGH'", 
+                                          "'LOW'", 
+                                          "'CLOSE'",
+                                          "'FI1'",
+                                          "'FIR1'",
+                                        "")",
+                                       ",",
+                                       "colnames(BDPI)",
+                                     ")",
+                               ]
+                     )
+
+
+
+
+
+
+df <- rep("BDPI", 81)
+
+BDPS_List <- lapply(df, get)
+
+names(BDPS_List)
+
+
+
+
+
+# Abreviaciones Señal Intradiaria Final
+SIF <- paste0("SIF", 1:NFrac)
+
+# Ejemplo FI1 y FIR1
+# BDPI$SIF1 <- ifelse(BDPI$FI1 == BDPI$FIR1, BDPI$FI1, NA)
+FunSIF <- paste0("BDPI$", SIF,
+                 " <- ifelse(",
+                             "BDPI$", ParamFracI$Fractal, " == ", "BDPI$", ParamFracR$Fractal,
+                             ",",
+                             "BDPI$", ParamFracI$Fractal,
+                             ",",
+                             "NA",
+                            ")"
+                )
+eval(parse(text = FunSIF))
+
+
+
+
+
+
+# 11. VELA INTRADIARIA PARA FRANJA HORARIA DE NEGOCIACION OBJETIVO ############
+
+# Selección de columnas de interés para cálculos sobre las negociaciones
+BDPSI <- BDPI[,match(c("DATE", 
+                       "DATEFRAME", 
+                       "VOLUME", 
+                       "OPEN", 
+                       "HIGH", 
+                       "LOW", 
+                       "CLOSE",
+                       SIF
+                       ),
+                     colnames(BDPI)
+                     )
+              ]
+
+
+
+
+
+
+# 12. Transicion ####
+# 13. Utilidad/Trade y DD/Trade (largo) ####
+# 14. SenalSigno ####
+# 15. Utilidad/Trade y DD/Trade (largo y corto) ####
+# 16. Utilidad total y MDD ####
+# 17. Comparacion utilidades activos ####
+
+
+
+
+
+
+# X. CÁLCULO ESTADÍSTICAS #####################################################
 
 BDP$RET <- c(0, rep(NA, (N-1)))
 BDP$RET_ACUM <- c(0, rep(NA, (N-1)))
@@ -635,10 +572,10 @@ NDIAS <- as.numeric(BDP$DATE[N] - BDP$DATE[1])
 RET_ACUM_ANUAL <- (1 + RET_ACUM)^(365/(NDIAS-1))-1
 
 
-# 5. RESUMEN ESTADÍSTICAS  ####################################################
+# X. RESUMEN ESTADÍSTICAS  ####################################################
 
 
-# 6. OBSERVACIONES ############################################################
+# X. OBSERVACIONES ############################################################
 
 #    1. Apalancamiento mal
 #    2. Retorno mal
