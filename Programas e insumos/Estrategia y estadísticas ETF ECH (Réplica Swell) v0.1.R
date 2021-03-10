@@ -469,8 +469,8 @@ Senales <- data.frame(NombreBD = rep(NA, NFrac^2),
                      )
 Senales$NombreBD <- paste0("BDP_I", Senales$I, "_R", Senales$R)
 
-#AQUÍ VAMOOOS
-FunBDPSList <- paste0("BDP_I", Senales$I, "_R", Senales$R,
+#AQUÍ VAMOOOSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+FunBDPSList <- paste0(Senales$NombreBD,
                       " <- BDPI[",
                                 "match(",
                                        "c('DATE',", 
@@ -490,9 +490,6 @@ FunBDPSList <- paste0("BDP_I", Senales$I, "_R", Senales$R,
                      )
 
 eval(parse(text = FunBDPSList))
-
-
-
 
 df <- rep("BDPI", 81)
 

@@ -15,5 +15,17 @@ TT <- paste0("FF[", x, ",]"," <- ", "x[", x, "] * y")
 eval(parse(text = TT))
 
 
+FF <- function(BD,FI,FR) {
+  BDP_IX_RX <- BD[match(c('DATE','DATEFRAME','VOLUME','OPEN','HIGH','LOW','CLOSE',FI ,FR), colnames(BD))]
+  return(BDP_IX_RX)
+}
+
+VFF <- Vectorize(FF, vectorize.args = c("FI", "FR"))
+
+BDPS_List <- VFF(BDPI, Senales$FI, Senales$FIR)
+
+
+
+
 
 
