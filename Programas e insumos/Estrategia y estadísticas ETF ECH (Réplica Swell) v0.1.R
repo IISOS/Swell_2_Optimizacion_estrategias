@@ -477,11 +477,11 @@ FunBDPSList <- paste0("BDP_I", Senales$I, "_R", Senales$R,
                                           "'DATEFRAME',", 
                                           "'VOLUME',", 
                                           "'OPEN',", 
-                                          "'HIGH'", 
+                                          "'HIGH',", 
                                           "'LOW',", 
                                           "'CLOSE',",
-                                          Senales$FI, "," ,
-                                          Senales$FIR,
+                                          "'", Senales$FI, "' ," ,
+                                          "'",  Senales$FIR, "'",
                                         ")",
                                        ",",
                                        " colnames(BDPI)",
@@ -489,7 +489,7 @@ FunBDPSList <- paste0("BDP_I", Senales$I, "_R", Senales$R,
                                "]"
                      )
 
-
+eval(parse(text = FunBDPSList))
 
 
 
