@@ -469,24 +469,24 @@ Senales <- data.frame(NombreBD = rep(NA, NFrac^2),
                      )
 Senales$NombreBD <- paste0("BDP_I", Senales$I, "_R", Senales$R)
 
-FunBDPSList <- paste0("BDP_I1_R1",
-                      " <- BDPI[,",
-                                ",",
+#AQUÍ VAMOOOS
+FunBDPSList <- paste0("BDP_I", Senales$I, "_R", Senales$R,
+                      " <- BDPI[",
                                 "match(",
-                                       "c('DATE'", 
-                                          "'DATEFRAME'", 
-                                          "'VOLUME'", 
-                                          "'OPEN'", 
+                                       "c('DATE',", 
+                                          "'DATEFRAME',", 
+                                          "'VOLUME',", 
+                                          "'OPEN',", 
                                           "'HIGH'", 
-                                          "'LOW'", 
-                                          "'CLOSE'",
-                                          "'FI1'",
-                                          "'FIR1'",
-                                        "")",
+                                          "'LOW',", 
+                                          "'CLOSE',",
+                                          Senales$FI, "," ,
+                                          Senales$FIR,
+                                        ")",
                                        ",",
-                                       "colnames(BDPI)",
+                                       " colnames(BDPI)",
                                      ")",
-                               ]
+                               "]"
                      )
 
 
