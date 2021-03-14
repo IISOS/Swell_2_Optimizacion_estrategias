@@ -52,7 +52,7 @@
 #       fila del archivo. Se debe verificar que el archivo solo contenga la 
 #       información mencionada y nada adicional (incluso celdas borradas).
 
-# 1. PAQUETES Y CONFIGURACIONES ###############################################
+# 01. PAQUETES Y CONFIGURACIONES ###############################################
 
 # Paquetes
 Libraries <- c("readxl",      # read_excel
@@ -60,8 +60,9 @@ Libraries <- c("readxl",      # read_excel
                "lubridate",   # makedatetime, year, month,.., second
                "ggplot2",     # ggplot  
                "data.table",  # Data manipulation
-               "zoo",          # rollapplyr
-               "tidyr")       # fill 
+               "zoo",         # rollapplyr
+               "tidyr",       # fill 
+               "dplyr")       # group_by, slice_max 
 
 # Instalación/cargue de paquetes
 for (L in Libraries) {
@@ -86,7 +87,10 @@ setwd(BaseDirPath)
 #Plantilla gráficos
 
 
-# 2. LECTURA Y PREPARACIÓN DE DATOS ###########################################
+# 02. LECTURA Y PREPARACIÓN DE DATOS ###########################################
+
+# Borrado de información
+rm(list = ls())
 
 # Lectura de archivo histórico de precios 
 ArchivoCargue <- "Data ETF ECH.xlsx"
@@ -112,7 +116,7 @@ N <- length(BDPI$DATEFRAME)
 BDPI <- BDPI[order(BDPI$DATEFRAME),]
 
 
-# 3. CODIFICACIÓN DE FRACTALES INTRADIARIOS ##################################
+# 03. CODIFICACIÓN DE FRACTALES INTRADIARIOS ##################################
 
 # Insumos parametrización FI
 ArchivoFractales <- "Parametros fractales.xlsx"
@@ -150,7 +154,7 @@ ParamFracI$VariableVenta <- paste0("BDPI$",ParamFracI$`Variable venta`)
 ParamFracI$RefVenta <- paste0("BDPI$",ParamFracI$`Ref. venta`)
 
 
-# 4. CÁLCULO SEÑALES DE FRACTALES INTRADIARIOS ################################
+# 04. CÁLCULO SEÑALES DE FRACTALES INTRADIARIOS ################################
 
 # Cálculo de la función sobre la referencia correspondiente a cada fractal
 # intradiario de compra.Ejemplo FI1:
@@ -209,7 +213,7 @@ eval(parse(text = FunSenFIX))
 BDPI <- fill(data = BDPI, ParamFracI$Fractal, .direction = "down")
 
 
-# 5. VELA DIARIA #############################################################
+# 05. VELA DIARIA #############################################################
 
 BDPD <- BDPI
 BDPD$DATE <- as.Date(BDPD$DATEFRAME)
@@ -226,7 +230,7 @@ BDPD <- BDPD[,
 ]
 
 
-# 6. CODIFICACIÓN DE FRACTALES DIARIOS (INCLUYE FIRX) #########################
+# 06. CODIFICACIÓN DE FRACTALES DIARIOS (INCLUYE FIRX) #########################
 
 # Variables de codificación de fractales diarios
 ParamFracD <- read_excel(ArchivoFractales, sheet = "Parametros fractales")
@@ -274,7 +278,7 @@ ParamFracR$VariableCompra <- paste0("BDPI$",ParamFracD$`Variable compra`)
 ParamFracR$VariableVenta <- paste0("BDPI$",ParamFracD$`Variable venta`)
 
 
-# 7. CÁLCULO SEÑALES DE FRACTALES DIARIOS #####################################
+# 07. CÁLCULO SEÑALES DE FRACTALES DIARIOS #####################################
 
 # Cálculo de la función sobre la referencia correspondiente a cada fractal
 # diario de compra.Ejemplo FD1:
@@ -333,7 +337,7 @@ eval(parse(text = FunSenFDX))
 BDPD <- fill(data = BDPD, ParamFracD$Fractal, .direction = "down")
 
 
-# 8. CÁLCULO FUNCIONES SOBRE REFERENCIAS DE FRACTALES DIARIOS DE REFERENCIA ####
+# 08. CÁLCULO FUNCIONES SOBRE REFERENCIAS DE FRACTALES DIARIOS DE REFERENCIA ####
 
 # Cálculo de la función sobre la referencia correspondiente a cada fractal
 # diario de referencia de compra.Ejemplo FDR1:
@@ -374,7 +378,7 @@ FunDesfaseVenta <-paste0("BDPD$", ParamFracR$NombreRefVenta,
 eval(parse(text = FunDesfaseVenta))
 
 
-# 9. CÁLCULO SEÑALES DE FRACTALES INTRADIARIOS DE REFERENCIA ##################
+# 09. CÁLCULO SEÑALES DE FRACTALES INTRADIARIOS DE REFERENCIA ##################
 
 # Identificación de fecha
 BDPI$DATE <- NA
@@ -459,8 +463,9 @@ FunSenFIRX <- paste0("BDPI$", ParamFracR$Fractal,
 eval(parse(text = FunSenFIRX))
 
 
-# 10. CÁLCULO SEÑAL INTRADIARIA FINAL #########################################
+# 10. CÁLCULO SEÑAL INTRADIARIA FINAL (SIF) ###################################
 
+# Listado de señales y nombres de sus posibles combinaciones
 Senales <- data.frame(NombreBD = rep(NA, NFrac^2),
                       I = rep(1:NFrac,rep(NFrac, NFrac)),
                       R = rep(1:NFrac, NFrac),
@@ -469,7 +474,7 @@ Senales <- data.frame(NombreBD = rep(NA, NFrac^2),
                      )
 Senales$NombreBD <- paste0("BDP_I", Senales$I, "_R", Senales$R)
 
-#AQUÍ VAMOOOSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+# Creación de base de datos para cada combinación de señales posible
 FunBDPSList <- paste0(Senales$NombreBD,
                       " <- BDPI[",
                                 "match(",
@@ -486,88 +491,150 @@ FunBDPSList <- paste0(Senales$NombreBD,
                                        ",",
                                        " colnames(BDPI)",
                                      ")",
-                               "]"
+                              "]"
                      )
-
 eval(parse(text = FunBDPSList))
+BDPSList <- lapply(Senales$NombreBD, get)
+names(BDPSList) <- Senales$NombreBD
+rm(list = Senales$NombreBD)
 
-df <- rep("BDPI", 81)
-
-BDPS_List <- lapply(df, get)
-
-names(BDPS_List)
-
-
-
-
-
-# Abreviaciones Señal Intradiaria Final
-SIF <- paste0("SIF", 1:NFrac)
-
-# Ejemplo FI1 y FIR1
-# BDPI$SIF1 <- ifelse(BDPI$FI1 == BDPI$FIR1, BDPI$FI1, NA)
-FunSIF <- paste0("BDPI$", SIF,
-                 " <- ifelse(",
-                             "BDPI$", ParamFracI$Fractal, " == ", "BDPI$", ParamFracR$Fractal,
-                             ",",
-                             "BDPI$", ParamFracI$Fractal,
-                             ",",
-                             "NA",
-                            ")"
-                )
-eval(parse(text = FunSIF))
+# Cálculo de señal Intradiaria Final (SIF)
+FunSIF <- function(BD) {
+  colnames(BD)[match("FI", substr(colnames(BD),1,2))] <- "FI"
+  colnames(BD)[match("FIR", substr(colnames(BD),1,3))] <- "FIR"
+  BD$SIF <- ifelse(BD$FI == BD$FIR,BD$FI,"NONE")
+  BD$SIF[is.na(BD$SIF)] <- "NONE"
+  return(BD)
+}
+BDPSList <- lapply(BDPSList, FunSIF)
 
 
+# 11. VELA INTRADIARIA PARA FRANJA HORARIA DE OBJETIVO NEGOCIACION ############
+
+# Eliminación de FH descartadas para negociar antes del cierre
+NFHC <- 3 # Número de FH descartadas para negociar antes del cierre
+FunFiltroFH <- function(BD) {
+  BD_Descartada <- BD %>% group_by(DATE) %>% slice_max(DATEFRAME, n = NFHC)
+  FHDescartadas <- match(BD_Descartada$DATEFRAME, BD$DATEFRAME)
+  BDP_Filtrada <- BD[-FHDescartadas,]
+  return(BDP_Filtrada)
+}
+BDPSList <- lapply(BDPSList, FunFiltroFH)
 
 
+# 12. DECISIÓN DE INVERSIÓN ####
 
-
-# 11. VELA INTRADIARIA PARA FRANJA HORARIA DE NEGOCIACION OBJETIVO ############
-
-# Selección de columnas de interés para cálculos sobre las negociaciones
-BDPSI <- BDPI[,match(c("DATE", 
-                       "DATEFRAME", 
-                       "VOLUME", 
-                       "OPEN", 
-                       "HIGH", 
-                       "LOW", 
-                       "CLOSE",
-                       SIF
-                       ),
-                     colnames(BDPI)
-                     )
-              ]
-
-
-
+# Determinación de la decisión de inversión con base en los cambios en SIF
+FunDecision <- function(BD) {
+  BD$DECISION <- ifelse((BD$SIF == shift(BD$SIF, n=1, fill = NA)),
+                        ifelse((BD$SIF == "BUY" & shift(BD$SIF, n=1, fill = NA) == "BUY") | (BD$SIF == "SELL" & shift(BD$SIF, n=1, fill = NA) == "SELL"),
+                               "HOLD POSITION",
+                               "NO POSITION"
+                               ),
+                        ifelse((shift(BD$SIF, n=1, fill = NA) == "NONE"),
+                               "OPEN",
+                               ifelse((BD$SIF == "NONE"),
+                                      "CLOSE",
+                                      "CLOSE-OPEN"
+                                      )
+                               )
+                        )
+  return(BD)
+}
+BDPSList <- lapply(BDPSList, FunDecision)
 
 
 
-# 12. Transicion ####
-# 13. Utilidad/Trade y DD/Trade (largo) ####
-# 14. SenalSigno ####
-# 15. Utilidad/Trade y DD/Trade (largo y corto) ####
-# 16. Utilidad total y MDD ####
-# 17. Comparacion utilidades activos ####
+# 13. CÁLCULO ESTADÍSTICAS RETORNO Y RIESGO ###################################
+
+#BD <- BDPSList$BDP_I1_R1
+
+Fun_Est_U_MPA <- function(BD) {
+  
+  # Asignación de precio de apertura (PA)
+  BD$PA <- ifelse((BD$DECISION == "OPEN"),
+                  BD$CLOSE,
+                  ifelse((BD$DECISION == "CLOSE-OPEN"),
+                         BD$CLOSE,
+                         NA
+                  )
+  )
+  BD$PA <- na.locf(BD$PA, na.rm = FALSE) # Arrastre si hay posición
+  BD$PA <- shift(BD$PA, n=1, fill=NA) # Se deja el PA de la posición cerrada.
+  BD$PA[which(BD$DECISION == "NO POSITION")] <- NA # No aplica si no hay posición
+  
+  # Asignación de precio de cierre (PC)
+  BD$PC <- ifelse((BD$DECISION == "CLOSE"),
+                  BD$CLOSE,
+                  ifelse((BD$DECISION == "CLOSE-OPEN"),
+                         BD$CLOSE,
+                         NA
+                  )
+  )
+  
+  # Cálculo de utilidad de cada negociación suponiendo solo posiciones largas
+  BD$UTILIDAD <- BD$PC - BD$PA
+  
+  # Asignación de signo según señal para identificar posiciones largas y cortas
+  BD$SENALSIGNO <- ifelse((BD$DECISION == "OPEN") | (BD$DECISION == "HOLD POSITION"),
+                          ifelse((BD$SIF == "BUY"),
+                                 1,
+                                 -1
+                          ),
+                          ifelse((BD$DECISION == "CLOSE") | (BD$DECISION == "CLOSE-OPEN"),
+                                 ifelse((shift(BD$SIF, n=1, fill=NA) == "BUY"),
+                                        1,
+                                        -1
+                                 ),
+                                 NA # Cuando BD$DECISION == "NO POSITION"
+                          )
+  ) 
+  
+  # Cálculo de utilidad de cada negociación según posiciones (largas o cortas)
+  BD$UTILIDAD <- BD$UTILIDAD * BD$SENALSIGNO
+  
+  # Cálculo de utilidad acumulada
+  BD$UTILIDADACUM <- BD$UTILIDAD
+  BD$UTILIDADACUM[is.na(BD$UTILIDAD)] <- 0
+  BD$UTILIDADACUM <- cumsum(BD$UTILIDADACUM)
+  
+  # Cálculo pérdida acumulada
+  BD$PERDACUM <- BD$UTILIDADACUM - cummax(BD$UTILIDADACUM)
+  BD$MAXPERDACUM <- cummin(BD$PERDACUM)
+  
+  # Estadisticas finales utilidad y máxima pérdida acumulada
+  N <- length(BD$DATEFRAME)
+  UTILIDADACUM <- BD$UTILIDADACUM[N]
+  MAXPERDACUM <- BD$MAXPERDACUM[N]
+  UA_MPA <- UTILIDADACUM / MAXPERDACUM
+  
+  # Gráfico utilidad acumulada
+  G_UTILIDADACUM <- ggplot(BD, aes(x=DATE, y=UTILIDADACUM)) +
+    geom_line() +
+    expand_limits(y=0)
+  
+  #Resultados
+  BD_Est_U_MPA <- list(BD, UTILIDADACUM, MAXPERDACUM, UA_MPA, G_UTILIDADACUM)
+  names(BD_Est_U_MPA) <- c("BDPS", "UtilidadAcum", "MaxPerdAcum", "UA_MPA", "Graf_UtilidadAcum")
+  
+  return(BD_Est_U_MPA)
+  
+}
+
+BDPSList <- lapply(BDPSList, Fun_Est_U_MPA)
+
+Fun_UA_MPA <- function(List) {
+  UA_MPA <- List$UA_MPA
+  UA <- List$UtilidadAcum
+  return(data.frame(UA=UA, UA_MPA=UA_MPA))
+}
+
+M <- vapply(BDPSList, Fun_UA_MPA)
+
+Fun_UA_MPA(BDPSList[1])
 
 
-
-
-
-
-# X. CÁLCULO ESTADÍSTICAS #####################################################
-
-BDP$RET <- c(0, rep(NA, (N-1)))
-BDP$RET_ACUM <- c(0, rep(NA, (N-1)))
-BDP$VAL_PORT_ACUM_B100 <- c(100, rep(NA, (N-1)))
-BDP$MAX_PERD_ACUM <- c(0, rep(NA, (N-1)))
-
-BDP$RET <- (BDP$VAL_PORT / c(NA, BDP$VAL_PORT[1:N-1]) -1) * c(NA, BDP$SENALSIGNO[1:N-1]) 
-BDP$RET_ACUM <- c(NA, cumprod(1 + BDP$RET[2:N]))
-RET_ACUM <- BDP$RET_ACUM[N] - 1
-NDIAS <- as.numeric(BDP$DATE[N] - BDP$DATE[1])
-RET_ACUM_ANUAL <- (1 + RET_ACUM)^(365/(NDIAS-1))-1
-
+# 14. Comparacion utilidades activos ####
 
 # X. RESUMEN ESTADÍSTICAS  ####################################################
 
@@ -576,3 +643,5 @@ RET_ACUM_ANUAL <- (1 + RET_ACUM)^(365/(NDIAS-1))-1
 
 #    1. Apalancamiento mal
 #    2. Retorno mal
+
+# Incluir al principio seleccion de fractales que el usuario desea correr.
