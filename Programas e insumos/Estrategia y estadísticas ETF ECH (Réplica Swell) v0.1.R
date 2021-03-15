@@ -4,7 +4,7 @@
 ###          Authors: Olga Serna / Ivan Serrano         ###
 
 
-# 0. DESCRIPCIÓN E INSTRUCCIONES ##############################################
+# 00. DESCRIPCIÓN E INSTRUCCIONES ##############################################
 
 # 0.1 Objetivo
 
@@ -84,13 +84,29 @@ for (L in Libraries) {
 BaseDirPath = dirname(getActiveDocumentContext()$path)
 setwd(BaseDirPath)
 
-#Plantilla gráficos
+# Borrado de información
+rm(list = ls())
+
+#Plantillas para gráficos
+PlantillaG <- theme(plot.title = element_text(color = "grey20", angle = 0, hjust = 0.5, vjust = 0.5, face = "bold", margin = margin(b = 20)),
+                    plot.subtitle = element_text(color = "grey20", angle = 0, hjust = 0.5, vjust = 0.5, face = "bold", margin = margin(b = 20)),
+                    axis.text.x = element_text(color = "grey20", size = 10, angle = 90, hjust = 0.5, vjust = 0.5, face = "plain", margin = margin(t = 5)),
+                    axis.text.y = element_text(color = "grey20", angle = 0, hjust = 0.5, vjust = 0.5, face = "plain", margin = margin(r = 5)),  
+                    axis.title.x = element_text(color = "grey20", angle = 0, hjust = 0.5, vjust = 0.5, face = "plain", margin = margin(t = 10)),
+                    axis.title.y = element_text(color = "grey20", angle = 90, hjust = 0.5, vjust = 0.5, face = "plain", margin = margin(r = 10)),
+                    axis.ticks = element_blank(),
+                    legend.position = "bottom", legend.title = element_text(face = "bold"), legend.text = element_text(size = 15), #legend.direction = "vertical", legend.box = "horizontal", #legend.key.size = unit(1, "cm"),
+                    panel.background = element_blank(),
+                    panel.grid.major.x = element_blank(),
+                    panel.grid.minor.x = element_blank(),
+                    panel.grid.major.y = element_line(size=0.5, color = "lightgrey"),
+                    panel.grid.minor.y = element_blank(),
+                    panel.border = element_blank(),
+                    axis.line.x = element_line(size=0.5, color = "grey")
+                   )
 
 
 # 02. LECTURA Y PREPARACIÓN DE DATOS ###########################################
-
-# Borrado de información
-rm(list = ls())
 
 # Lectura de archivo histórico de precios 
 ArchivoCargue <- "Data ETF ECH.xlsx"
@@ -547,8 +563,6 @@ BDPSList <- lapply(BDPSList, FunDecision)
 
 # 13. CÁLCULO ESTADÍSTICAS RETORNO Y RIESGO ###################################
 
-#BD <- BDPSList$BDP_I1_R1
-
 Fun_Est_U_MPA <- function(BD) {
   
   # Asignación de precio de apertura (PA)
@@ -557,8 +571,8 @@ Fun_Est_U_MPA <- function(BD) {
                   ifelse((BD$DECISION == "CLOSE-OPEN"),
                          BD$CLOSE,
                          NA
+                        )
                   )
-  )
   BD$PA <- na.locf(BD$PA, na.rm = FALSE) # Arrastre si hay posición
   BD$PA <- shift(BD$PA, n=1, fill=NA) # Se deja el PA de la posición cerrada.
   BD$PA[which(BD$DECISION == "NO POSITION")] <- NA # No aplica si no hay posición
@@ -569,8 +583,8 @@ Fun_Est_U_MPA <- function(BD) {
                   ifelse((BD$DECISION == "CLOSE-OPEN"),
                          BD$CLOSE,
                          NA
+                         )
                   )
-  )
   
   # Cálculo de utilidad de cada negociación suponiendo solo posiciones largas
   BD$UTILIDAD <- BD$PC - BD$PA
@@ -580,15 +594,15 @@ Fun_Est_U_MPA <- function(BD) {
                           ifelse((BD$SIF == "BUY"),
                                  1,
                                  -1
-                          ),
+                                ),
                           ifelse((BD$DECISION == "CLOSE") | (BD$DECISION == "CLOSE-OPEN"),
                                  ifelse((shift(BD$SIF, n=1, fill=NA) == "BUY"),
                                         1,
                                         -1
-                                 ),
+                                        ),
                                  NA # Cuando BD$DECISION == "NO POSITION"
-                          )
-  ) 
+                                )
+                          ) 
   
   # Cálculo de utilidad de cada negociación según posiciones (largas o cortas)
   BD$UTILIDAD <- BD$UTILIDAD * BD$SENALSIGNO
@@ -606,12 +620,13 @@ Fun_Est_U_MPA <- function(BD) {
   N <- length(BD$DATEFRAME)
   UTILIDADACUM <- BD$UTILIDADACUM[N]
   MAXPERDACUM <- BD$MAXPERDACUM[N]
-  UA_MPA <- UTILIDADACUM / MAXPERDACUM
+  UA_MPA <- UTILIDADACUM / -MAXPERDACUM
   
   # Gráfico utilidad acumulada
-  G_UTILIDADACUM <- ggplot(BD, aes(x=DATE, y=UTILIDADACUM)) +
-    geom_line() +
-    expand_limits(y=0)
+  G_UTILIDADACUM <- ggplot(BD, aes(x = DATE, y = UTILIDADACUM)) +
+                      geom_line() +
+                      expand_limits(y = 0) +
+                      PlantillaG
   
   #Resultados
   BD_Est_U_MPA <- list(BD, UTILIDADACUM, MAXPERDACUM, UA_MPA, G_UTILIDADACUM)
@@ -623,23 +638,44 @@ Fun_Est_U_MPA <- function(BD) {
 
 BDPSList <- lapply(BDPSList, Fun_Est_U_MPA)
 
+
+# 14. RESUMEN ESTADÍSTICAS ESTRATEGIAS ########################################
+
 Fun_UA_MPA <- function(List) {
-  UA_MPA <- List$UA_MPA
-  UA <- List$UtilidadAcum
-  return(data.frame(UA=UA, UA_MPA=UA_MPA))
+  UA_MPA <- data.frame(UtilidadAcum = List$UtilidadAcum, 
+                       MaxPerdAcum = List$MaxPerdAcum, 
+                       UA_MPA = List$UA_MPA
+                      )
+  return(UA_MPA)
 }
 
-M <- vapply(BDPSList, Fun_UA_MPA)
+Senales <- cbind(Senales, t(sapply(BDPSList, Fun_UA_MPA)))
+Senales$UtilidadAcum <- unlist(Senales$UtilidadAcum)
+Senales$MaxPerdAcum <- unlist(Senales$MaxPerdAcum)
+Senales$UA_MPA <- unlist(Senales$UA_MPA)
+rownames(Senales) <- paste0("I", Senales$I, "R", Senales$R)
 
-Fun_UA_MPA(BDPSList[1])
+# Gráfico Utilidad/MDD por estrategia
+ggplot(Senales, aes(x = rownames(Senales), y = UA_MPA)) +
+  geom_col() +
+  ggtitle("Utilidad/MDD por estrategia") + 
+  xlab("Estrategia") + ylab("Utilidad/MDD") +
+  expand_limits(x = 0) +
+  expand_limits(y = 0) +
+  PlantillaG
+  
 
+# 15. ESTRATEGIA ÓPTIMA #######################################################
 
-# 14. Comparacion utilidades activos ####
-
-# X. RESUMEN ESTADÍSTICAS  ####################################################
-
+NEstrategiaOpt <- which.max(Senales$UA_MPA)
+EstrategiaOpt <- rownames(Senales)[NEstrategiaOpt]
+paste0("La estrategia óptima es ", EstrategiaOpt)
+View(BDPSList$BDP_I2_R8$BDPS)
+BDPSList$BDP_I2_R8$Graf_UtilidadAcum
 
 # X. OBSERVACIONES ############################################################
+
+# Revisar PA cuando OPEN
 
 #    1. Apalancamiento mal
 #    2. Retorno mal
