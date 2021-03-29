@@ -1,5 +1,5 @@
 ###  Estrategia y estadísticas ETF ECH (Réplica Swell)  ###
-###                     2021-03-24                      ###
+###                     2021-03-28                      ###
 ###                     Version 0.0                     ###  
 ###          Authors: Olga Serna / Ivan Serrano         ###
 
@@ -480,6 +480,7 @@ Senales <- data.frame(NombreBD = rep(NA, NFrac^2),
                       FIR = paste0("FIR", rep(1:NFrac, NFrac))
 )
 Senales$NombreBD <- paste0("BDP_I", Senales$I, "_R", Senales$R)
+rownames(Senales) <- paste0("I", Senales$I, "R", Senales$R)
 
 # Creación de base de datos para cada combinación de señales posible
 FunBDPSList <- paste0(Senales$NombreBD,
@@ -588,7 +589,7 @@ Fun_PENTRADA_PCIERRE_SENALSIGNO <- function(BD) {
   
 }
 
-BDPSList <- lapply(BDPSList, Fun_PENTRADA_PCIERRE_SENALSIGNO)
+BDPSList <- lapply(BDPSList, Fun_PENTRADA_PCIERRE_SENALSIGNO) # Construye lista de BDs
 
 # Cálculo de posición y valoración del portafolio suponiendo solo posiciones largas
 
@@ -687,7 +688,7 @@ BDPSList <- lapply(BDPSList, Fun_POS_VAL_PORT)
 EndT <- Sys.time()
 TElapsed <- EndT - StartT
 
-# 13. CÁLCULO ESTADÍSTICAS RETORNO Y RIESGO [PROPUESTA] #############################
+# 13. CÁLCULO ESTADÍSTICAS RETORNO Y RIESGO [PROPUESTA] #######################
 
 Fun_Est_Riesgo_Retorno <- function(BD) {
   
@@ -708,10 +709,11 @@ Fun_Est_Riesgo_Retorno <- function(BD) {
   BD$MAX_PERD_ACUM <- c(NA, cummin(BD$PERD_ACUM[2:N]))
   
   # Estadísticas finales retorno y riesgo
-  RET_ACUM <- BD$RET_ACUM[N] - 1
-  RET_ACUM_ANUAL <- (1 + RET_ACUM)^(365*(13-NFHC)/(N-1))-1
+  RET_ACUM <- BD$RET_ACUM[N]
+  VAL_PORT_ACUM_B100 <- BD$VAL_PORT_ACUM_B100[N]
+  RET_ACUM_ANUAL <- (1 + RET_ACUM)^(365*(13-NFHC)/(N-1)) - 1
   MAXPERDACUM <- BD$MAX_PERD_ACUM[N]
-  RA_MPA <- RET_ACUM / MAXPERDACUM
+  RAA_MPA <- RET_ACUM_ANUAL / -MAXPERDACUM
   
   # Gráfico utilidad acumulada
   G_RETACUM <- ggplot(BD, aes(x=DATE, y=VAL_PORT_ACUM_B100)) +
@@ -723,38 +725,38 @@ Fun_Est_Riesgo_Retorno <- function(BD) {
     PlantillaG
   
   #Resultados
-  BD_Est_Retorno_Riesgo <- list(BD, RET_ACUM_ANUAL, MAXPERDACUM, RA_MPA, G_RETACUM)
-  names(BD_Est_Retorno_Riesgo) <- c("BD", "RetAcum", "MaxPerdAcum", "RA_MPA", "Graf_RetAcum")
+  BD_Est_Retorno_Riesgo <- list(BD, RET_ACUM_ANUAL, VAL_PORT_ACUM_B100, MAXPERDACUM, RAA_MPA, G_RETACUM)
+  names(BD_Est_Retorno_Riesgo) <- c("BD", "RetAcumAnual", "VAlPortAcumB100", "MaxPerdAcum", "RAA_MPA", "Graf_RetAcum")
   
   return(BD_Est_Retorno_Riesgo)
   
 }
 
-BDPSList <- lapply(BDPSList, Fun_Est_Riesgo_Retorno)
+BDPSList <- lapply(BDPSList, Fun_Est_Riesgo_Retorno) # Construye lista de listas
+names(BDPSList) <- rownames(Senales)
 
 
-# 14. RESUMEN ESTADÍSTICAS ESTRATEGIAS [PROPUESTA] ########################################
+# 14. RESUMEN ESTADÍSTICAS ESTRATEGIAS [PROPUESTA] ############################
 
 # Función para obtención de estadísticas retorno y riesgo de cada estrategia
 Fun_R_R <- function(List) {
-  R_R <- data.frame(RetAcum = List$RET_ACUM,
-                    ValAcumB100 = List$VAL_PORT_ACUM_B100,
-                    MaxPerdAcum = List$MAX_PERD_ACUM,
-                    RA_MPA = List$RA_MPA
-  )
+  R_R <- data.frame(RetAcumAnual = List$RetAcumAnual,
+                    VAlPortAcumB100 = List$VAlPortAcumB100,
+                    MaxPerdAcum = List$MaxPerdAcum,
+                    RAA_MPA = List$RAA_MPA
+                   )
   return(R_R)
 }
 
 # Obtención de estadísticas retorno y riesgo de cada estrategia
-Senales <- cbind(Senales, t(sapply(BDPSList, Fun_UA_MPA)))
+Senales <- cbind(Senales, t(sapply(BDPSList, Fun_R_R)))
 Senales$RetAcum <- unlist(Senales$RetAcum)
 Senales$ValAcumB100 <- unlist(Senales$ValAcumB100)
 Senales$MaxPerdAcum <- unlist(Senales$MaxPerdAcum)
-Senales$RA_MPA <- unlist(Senales$RA_MPA)
-rownames(Senales) <- paste0("I", Senales$I, "R", Senales$R)
+Senales$RAA_MPA <- unlist(Senales$RAA_MPA)
 
 # Gráfico RetAcum/MDD por estrategia
-ggplot(Senales, aes(x = rownames(Senales), y = RA_MPA)) +
+ggplot(Senales, aes(x = rownames(Senales), y = RAA_MPA)) +
   geom_col() +
   ggtitle("Ret.Acum/MDD por estrategia") + 
   xlab("Estrategia") + ylab("Ret.Acum/MDD") +
@@ -763,9 +765,9 @@ ggplot(Senales, aes(x = rownames(Senales), y = RA_MPA)) +
   PlantillaG
 
 # Gráfico RetAcum/MDD para estrategias por encima del promedio
-Estrategias_Mayores_Media <-  Senales %>% filter(RA_MPA > mean(RA_MPA)) 
+Estrategias_Mayores_Media <-  Senales %>% filter(RAA_MPA > mean(RAA_MPA)) 
 ggplot(Estrategias_Mayores_Media, 
-       aes(x = reorder(rownames(Estrategias_Mayores_Media), RA_MPA), y = UA_MPA)) +
+       aes(x = reorder(rownames(Estrategias_Mayores_Media), RAA_MPA), y = RAA_MPA)) +
   geom_col() +
   ggtitle("Ret.Acum/MDD para estrategias por encima del promedio") + 
   xlab("Estrategia") + ylab("Ret.Acum/MDD") +
@@ -778,12 +780,13 @@ RA_MDD_Objetivo <- as.numeric(read_excel(ArchivoCargue,
                                          col_names = FALSE
                                         )
                              )
-Est_may_Sup <-  Senales %>% filter(UA_MPA > U_MDD_Objetivo)
+Estrategias_Mayores_Objetivo <-  Senales %>% filter(RAA_MPA > RA_MDD_Objetivo)
 
-ggplot(Est_may_Sup, aes(x = reorder(rownames(Est_may_Sup), UA_MPA), y = UA_MPA)) +
+ggplot(Estrategias_Mayores_Objetivo, 
+  aes(x = reorder(rownames(Estrategias_Mayores_Objetivo), RAA_MPA), y = RAA_MPA)) +
   geom_col() +
-  ggtitle("Utilidad/MDD por estrategia") + 
-  xlab("Estrategia") + ylab("Utilidad/MDD") +
+  ggtitle("Ret.Acum/MDD para estrategias por encima del objetivo") + 
+  xlab("Estrategia") + ylab("Ret.Acum/MDD") +
   expand_limits(x = 0) +
   expand_limits(y = 0) +
   PlantillaG
