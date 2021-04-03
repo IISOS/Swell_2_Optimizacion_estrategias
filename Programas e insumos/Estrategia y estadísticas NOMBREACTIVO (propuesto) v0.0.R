@@ -1,5 +1,5 @@
 ###  Estrategia y estadísticas ETF ECH (Réplica Swell)  ###
-###                     2021-03-28                      ###
+###                     2021-04-01                      ###
 ###                     Version 0.0                     ###  
 ###          Authors: Olga Serna / Ivan Serrano         ###
 
@@ -63,6 +63,7 @@
 
 # Paquetes
 Libraries <- c("readxl",      # read_excel
+               "openxlsx",    # write.xlsx
                "rstudioapi",  # getActiveDocumentContext
                "lubridate",   # makedatetime, year, month,.., second
                "ggplot2",     # ggplot  
@@ -102,7 +103,7 @@ PlantillaG <- theme(plot.title = element_text(color = "grey20", angle = 0, hjust
                     axis.title.x = element_text(color = "grey20", angle = 0, hjust = 0.5, vjust = 0.5, face = "plain", margin = margin(t = 10)),
                     axis.title.y = element_text(color = "grey20", angle = 90, hjust = 0.5, vjust = 0.5, face = "plain", margin = margin(r = 10)),
                     axis.ticks = element_blank(),
-                    legend.position = "bottom", legend.title = element_text(face = "bold"), legend.text = element_text(size = 15), #legend.direction = "vertical", legend.box = "horizontal", #legend.key.size = unit(1, "cm"),
+                    legend.position = "bottom", legend.title = element_text(face = "bold"), legend.text = element_text(size = 10), #legend.direction = "vertical", legend.box = "horizontal", #legend.key.size = unit(1, "cm"),
                     panel.background = element_blank(),
                     panel.grid.major.x = element_blank(),
                     panel.grid.minor.x = element_blank(),
@@ -483,7 +484,7 @@ Senales$NombreBD <- paste0("BDP_I", Senales$I, "_R", Senales$R)
 rownames(Senales) <- paste0("I", Senales$I, "R", Senales$R)
 
 # Creación de base de datos para cada combinación de señales posible
-FunBDPSList <- paste0(Senales$NombreBD,
+FunBDList <- paste0(Senales$NombreBD,
                       " <- BDPI[",
                       "match(",
                       "c('DATE',", 
@@ -501,9 +502,9 @@ FunBDPSList <- paste0(Senales$NombreBD,
                       ")",
                       "]"
 )
-eval(parse(text = FunBDPSList))
-BDPSList <- lapply(Senales$NombreBD, get)
-names(BDPSList) <- Senales$NombreBD
+eval(parse(text = FunBDList))
+BDList <- lapply(Senales$NombreBD, get)
+names(BDList) <- Senales$NombreBD
 rm(list = Senales$NombreBD)
 
 # Cálculo de señal Intradiaria Final (SIF) 
@@ -515,7 +516,7 @@ FunSIF <- function(BD) {
   BD$SIF[is.na(BD$SIF)] <- "NONE"
   return(BD)
 }
-BDPSList <- lapply(BDPSList, FunSIF)
+BDList <- lapply(BDList, FunSIF)
 
 
 # 11. DECISIÓN DE INVERSIÓN ####
@@ -537,7 +538,7 @@ FunDecision <- function(BD) {
   )
   return(BD)
 }
-BDPSList <- lapply(BDPSList, FunDecision)
+BDList <- lapply(BDList, FunDecision)
 
 
 # 12. CÁLCULO POSICIÓN Y VALORACIÓN [PROPUESTA] ###############################
@@ -589,7 +590,7 @@ Fun_PENTRADA_PCIERRE_SENALSIGNO <- function(BD) {
   
 }
 
-BDPSList <- lapply(BDPSList, Fun_PENTRADA_PCIERRE_SENALSIGNO) # Construye lista de BDs
+BDPSList <- lapply(BDList, Fun_PENTRADA_PCIERRE_SENALSIGNO) # Construye lista de BDs
 
 # Cálculo de posición y valoración del portafolio suponiendo solo posiciones largas
 
@@ -716,17 +717,17 @@ Fun_Est_Riesgo_Retorno <- function(BD) {
   RAA_MPA <- RET_ACUM_ANUAL / -MAXPERDACUM
   
   # Gráfico utilidad acumulada
-  G_RETACUM <- ggplot(BD, aes(x=DATE, y=VAL_PORT_ACUM_B100)) +
-    geom_line() +
-    ggtitle("Retorno acumulado (Base 100)") + 
-    xlab("Fecha") + ylab("Retorno acumulado (Base 100)") +
+  G_VAL_PORT_ACUM_B100 <- ggplot(BD, aes(x = DATE, y = VAL_PORT_ACUM_B100)) +
+    geom_line(size = 1) +
+    ggtitle("Valor portafolio (Base 100)") + 
+    xlab("Fecha") + ylab("Valor (Base 100)") +
     expand_limits(x =BD$DATE[1]) +
     expand_limits(y = 0) +
     PlantillaG
   
   #Resultados
-  BD_Est_Retorno_Riesgo <- list(BD, RET_ACUM_ANUAL, VAL_PORT_ACUM_B100, MAXPERDACUM, RAA_MPA, G_RETACUM)
-  names(BD_Est_Retorno_Riesgo) <- c("BD", "RetAcumAnual", "VAlPortAcumB100", "MaxPerdAcum", "RAA_MPA", "Graf_RetAcum")
+  BD_Est_Retorno_Riesgo <- list(BD, RET_ACUM_ANUAL, VAL_PORT_ACUM_B100, MAXPERDACUM, RAA_MPA, G_VAL_PORT_ACUM_B100)
+  names(BD_Est_Retorno_Riesgo) <- c("BD", "RetAcumAnual", "VAlPortAcumB100", "MaxPerdAcum", "RAA_MPA", "Graf_ValPortAcumB100")
   
   return(BD_Est_Retorno_Riesgo)
   
@@ -749,6 +750,7 @@ Fun_R_R <- function(List) {
 }
 
 # Obtención de estadísticas retorno y riesgo de cada estrategia
+SenalesSwell <- Senales
 Senales <- cbind(Senales, t(sapply(BDPSList, Fun_R_R)))
 Senales$RetAcum <- unlist(Senales$RetAcum)
 Senales$ValAcumB100 <- unlist(Senales$ValAcumB100)
@@ -792,17 +794,21 @@ ggplot(Estrategias_Mayores_Objetivo,
   PlantillaG
 
 
-# 15. ESTRATEGIA ÓPTIMA [PROPUESTA] #######################################################
+# 15. ESTRATEGIA ÓPTIMA [PROPUESTA] ###########################################
 
-NEstrategiaOpt <- which.max(Senales$UA_MPA)
+NEstrategiaOpt <- which.max(Senales$RAA_MPA)
 EstrategiaOpt <- rownames(Senales)[NEstrategiaOpt]
-Nombre_BD_EstrategiaOpt <- Senales$NombreBD[NEstrategiaOpt]
 paste0("La estrategia óptima es ", EstrategiaOpt)
-View(BDPSList[[Nombre_BD_EstrategiaOpt]]$BDPS)
-BDPSList[[Nombre_BD_EstrategiaOpt]]$Graf_UtilidadAcum +
-  ggtitle(paste0("Utilidad acumulada estrategia ", EstrategiaOpt))
+View(BDPSList[[EstrategiaOpt]]$BD)
+BDPSList[[EstrategiaOpt]]$Graf_ValPortAcumB100 +
+  ggtitle(paste0("Valor portafolio estrategia ", EstrategiaOpt, " (Base 100)"))
+Nombre_BD_EstrategiaOpt <- Senales$NombreBD[NEstrategiaOpt]
+write.xlsx(x = BDPSList[[EstrategiaOpt]]$BD, 
+           file = paste0(Nombre_BD_EstrategiaOpt, "_Propuesta.xlsx"),
+           colNames = TRUE
+          )
 
-# 16. ESTRATEGIAS ADICIONALES [PROPUESTA] #################################################
+# 16. ESTRATEGIAS ADICIONALES [PROPUESTA] #####################################
 
 # Para visualizar la información y estadísticas de una estrategia en particular,
 # a continuación asigne a la variable "Estrategia" la cambinación deseada de 
@@ -811,12 +817,15 @@ BDPSList[[Nombre_BD_EstrategiaOpt]]$Graf_UtilidadAcum +
 
 Estrategia <- "I5R9"
 NEstrategia <- which(rownames(Senales) == Estrategia)
-Nombre_BD_Estrategia <- Senales$NombreBD[NEstrategia]
 paste0("La estrategia seleccionada es ", Estrategia)
-View(BDPSList[[Nombre_BD_Estrategia]]$BDPS)
-BDPSList[[Nombre_BD_Estrategia]]$Graf_UtilidadAcum +
-  ggtitle(paste0("Utilidad acumulada estrategia ", Estrategia))
-
+View(BDPSList[[Estrategia]]$BD)
+BDPSList[[Estrategia]]$Graf_ValPortAcumB100 +
+  ggtitle(paste0("Valor portafolio estrategia ", Estrategia, " (Base 100)"))
+Nombre_BD_Estrategia <- Senales$NombreBD[NEstrategia]
+write.xlsx(x = BDPSList[[Estrategia]]$BD, 
+           file = paste0(Nombre_BD_Estrategia, "_Propuesta.xlsx"),
+           colNames = TRUE
+          )
 
 # 17. CÁLCULO ESTADÍSTICAS RETORNO Y RIESGO [SWELL] #############################
 
@@ -824,12 +833,12 @@ Fun_Est_U_MPA <- function(BD) {
   
   # Asignación de precio de apertura (PA)
   BD$PA <- ifelse((BD$DECISION == "OPEN"),
-                  BD$CLOSE,
-                  ifelse((BD$DECISION == "CLOSE-OPEN"),
-                         BD$CLOSE,
-                         NA
-                  )
-  )
+                   BD$CLOSE,
+                   ifelse((BD$DECISION == "CLOSE-OPEN"),
+                           BD$CLOSE,
+                           NA
+                         )
+                 )
   BD$PA <- na.locf(BD$PA, na.rm = FALSE) # Arrastre donde no es OPEN o CLOSE-OPEN
   ID_CLOSEOPEN <- which(BD$DECISION=="CLOSE-OPEN")
   BD$PA[ID_CLOSEOPEN] <- shift(BD$PA, n=1, fill=NA)[ID_CLOSEOPEN] # Para CLOSE-OPEN se deja el PA de la posición cerrada.
@@ -837,12 +846,12 @@ Fun_Est_U_MPA <- function(BD) {
   
   # Asignación de precio de cierre (PC)
   BD$PC <- ifelse((BD$DECISION == "CLOSE"),
-                  BD$CLOSE,
-                  ifelse((BD$DECISION == "CLOSE-OPEN"),
-                         BD$CLOSE,
-                         NA
-                  )
-  )
+                   BD$CLOSE,
+                   ifelse((BD$DECISION == "CLOSE-OPEN"),
+                           BD$CLOSE,
+                           NA
+                         )
+                 )
   
   # Cálculo de utilidad de cada negociación suponiendo solo posiciones largas
   BD$UTILIDAD <- BD$PC - BD$PA
@@ -882,7 +891,7 @@ Fun_Est_U_MPA <- function(BD) {
   
   # Gráfico utilidad acumulada
   G_UTILIDADACUM <- ggplot(BD, aes(x = DATE, y = UTILIDADACUM)) +
-    geom_line() +
+    geom_line(size = 1) +
     ggtitle("Utilidad acumulada estrategia") + 
     xlab("Fecha") + ylab("Utilidad acumulada") +
     expand_limits(x =BD$DATE[1]) +
@@ -897,8 +906,8 @@ Fun_Est_U_MPA <- function(BD) {
   
 }
 
-BDPSList <- lapply(BDPSList, Fun_Est_U_MPA)
-
+BDListSwell <- lapply(BDList, Fun_Est_U_MPA)
+names(BDListSwell) <- rownames(SenalesSwell)
 
 # 18. RESUMEN ESTADÍSTICAS ESTRATEGIAS [SWELL] ########################################
 
@@ -912,14 +921,14 @@ Fun_UA_MPA <- function(List) {
 }
 
 # Obtención de estadísticas retorno y riesgo de cada estrategia
-Senales <- cbind(Senales, t(sapply(BDPSList, Fun_UA_MPA)))
-Senales$UtilidadAcum <- unlist(Senales$UtilidadAcum)
-Senales$MaxPerdAcum <- unlist(Senales$MaxPerdAcum)
-Senales$UA_MPA <- unlist(Senales$UA_MPA)
-rownames(Senales) <- paste0("I", Senales$I, "R", Senales$R)
+SenalesSwell <- cbind(SenalesSwell, t(sapply(BDListSwell, Fun_UA_MPA)))
+SenalesSwell$UtilidadAcum <- unlist(SenalesSwell$UtilidadAcum)
+SenalesSwell$MaxPerdAcum <- unlist(SenalesSwell$MaxPerdAcum)
+SenalesSwell$UA_MPA <- unlist(SenalesSwell$UA_MPA)
+rownames(SenalesSwell) <- paste0("I", SenalesSwell$I, "R", SenalesSwell$R)
 
 # Gráfico Utilidad/MDD por estrategia
-ggplot(Senales, aes(x = rownames(Senales), y = UA_MPA)) +
+ggplot(SenalesSwell, aes(x = rownames(SenalesSwell), y = UA_MPA)) +
   geom_col() +
   ggtitle("Utilidad/MDD por estrategia") + 
   xlab("Estrategia") + ylab("Utilidad/MDD") +
@@ -928,7 +937,7 @@ ggplot(Senales, aes(x = rownames(Senales), y = UA_MPA)) +
   PlantillaG
 
 # Gráfico Utilidad/MDD para estrategias por encima del promedio
-Est_may_media <-  Senales %>% filter(UA_MPA > mean(UA_MPA)) 
+Est_may_media <-  SenalesSwell %>% filter(UA_MPA > mean(UA_MPA)) 
 ggplot(Est_may_media, aes(x = reorder(rownames(Est_may_media), UA_MPA), y = UA_MPA)) +
   geom_col() +
   ggtitle("Utilidad/MDD por estrategia") + 
@@ -942,7 +951,7 @@ U_MDD_Objetivo <- as.numeric(read_excel(ArchivoCargue,
                                         col_names = FALSE
 )
 )
-Est_may_Sup <-  Senales %>% filter(UA_MPA > U_MDD_Objetivo)
+Est_may_Sup <-  SenalesSwell %>% filter(UA_MPA > U_MDD_Objetivo)
 
 ggplot(Est_may_Sup, aes(x = reorder(rownames(Est_may_Sup), UA_MPA), y = UA_MPA)) +
   geom_col() +
@@ -955,13 +964,18 @@ ggplot(Est_may_Sup, aes(x = reorder(rownames(Est_may_Sup), UA_MPA), y = UA_MPA))
 
 # 19. ESTRATEGIA ÓPTIMA [SWELL] #######################################################
 
-NEstrategiaOpt <- which.max(Senales$UA_MPA)
-EstrategiaOpt <- rownames(Senales)[NEstrategiaOpt]
-Nombre_BD_EstrategiaOpt <- Senales$NombreBD[NEstrategiaOpt]
+NEstrategiaOpt <- which.max(SenalesSwell$UA_MPA)
+EstrategiaOpt <- rownames(SenalesSwell)[NEstrategiaOpt]
 paste0("La estrategia óptima es ", EstrategiaOpt)
-View(BDPSList[[Nombre_BD_EstrategiaOpt]]$BDPS)
-BDPSList[[Nombre_BD_EstrategiaOpt]]$Graf_UtilidadAcum +
+View(BDListSwell[[EstrategiaOpt]]$BDPS)
+BDListSwell[[EstrategiaOpt]]$Graf_UtilidadAcum +
   ggtitle(paste0("Utilidad acumulada estrategia ", EstrategiaOpt))
+Nombre_BD_EstrategiaOpt <- SenalesSwell$NombreBD[NEstrategiaOpt]
+write.xlsx(x = BDListSwell[[EstrategiaOpt]]$BD, 
+           file = paste0(Nombre_BD_EstrategiaOpt, "_Swell.xlsx"),
+           colNames = TRUE
+          )
+
 
 # 20. ESTRATEGIAS ADICIONALES [SWELL] #################################################
 
@@ -971,17 +985,43 @@ BDPSList[[Nombre_BD_EstrategiaOpt]]$Graf_UtilidadAcum +
 # el fractal intradiario 2 y el fractal intradiario de referencia 8 use "I2R8":
 
 Estrategia <- "I5R9"
-NEstrategia <- which(rownames(Senales) == Estrategia)
-Nombre_BD_Estrategia <- Senales$NombreBD[NEstrategia]
+NEstrategia <- which(rownames(SenalesSwell) == Estrategia)
 paste0("La estrategia seleccionada es ", Estrategia)
-View(BDPSList[[Nombre_BD_Estrategia]]$BDPS)
-BDPSList[[Nombre_BD_Estrategia]]$Graf_UtilidadAcum +
+View(BDListSwell[[Estrategia]]$BD)
+BDListSwell[[Estrategia]]$Graf_UtilidadAcum +
   ggtitle(paste0("Utilidad acumulada estrategia ", Estrategia))
+Nombre_BD_Estrategia <- SenalesSwell$NombreBD[NEstrategia]
+write.xlsx(x = BDListSwell[[Estrategia]]$BD, 
+           file = paste0(Nombre_BD_Estrategia, "_Swell.xlsx"),
+           colNames = TRUE
+          )
+
+
+# 21. COMPARACIÓN SWELL vs PROPUESTA #########################################
+
+# Estrategia óptima - Perspectiva Swell vs. Perspectiva propuesta
+RetEstOptSwell <- (BDListSwell[[EstrategiaOpt]]$BD$UTILIDAD / shift(BDListSwell[[EstrategiaOpt]]$BD$PA, n=1, fill =NA))
+RetEstOptSwell[is.na(RetEstOptSwell)] <- 0
+ValPortB100Swell <- cumprod(1 + RetEstOptSwell) * 100
+
+U_Swell_v_Propuesta <- data.frame(DATE = BDListSwell[[EstrategiaOpt]]$BDPS$DATE,
+                                  ValPortB100Swell = ValPortB100Swell,
+                                  ValPortB100Propuesta = BDPSList[[EstrategiaOpt]]$BD$VAL_PORT_ACUM_B100 )
+
+ggplot(U_Swell_v_Propuesta, aes(x = DATE)) +
+  geom_line(aes(y = ValPortB100Swell, color = "Swell"), size = 1) +
+  geom_line(aes(y = ValPortB100Propuesta, color = "Propuesta"), size = 1) +
+  scale_colour_manual("", values = c("Swell"="red", "Propuesta"="darkblue"), breaks=c("Swell","Propuesta")) +
+  ggtitle("Retorno acumulado estrategia (Base 100)") + 
+  xlab("Fecha") + ylab("Retorno acumulado (Base 100)") +
+  PlantillaG
 
 
 # XX. OBSERVACIONES ###########################################################
 
+# Como comparar utilidades viejas con nuevas
 # Retornos mensuales y otras periodicidades
-# Otras estadisticaas ademas de R y MDD
+# Otras estadisticas ademas de R y MDD
 # Falta apalancamiento
-# Falta SL y TP
+# Falta comision swell, SL y TP
+# 
