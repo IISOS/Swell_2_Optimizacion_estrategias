@@ -1104,60 +1104,59 @@ ggsave(path = BaseDirPath,
       )
 
 # Gráfico Razón de Sortino por estrategia
-G_RetAcum_MDD <- ggplot(Senales, aes(x = rownames(Senales), y = RAA_MPA)) +
+G_SortinoR <- ggplot(Senales, aes(x = rownames(Senales), y = RazonSortinoAnual)) +
   geom_col() +
-  ggtitle("Ret.Acum/MDD por estrategia") + 
-  xlab("Estrategia") + ylab("Ret.Acum/MDD") +
+  ggtitle("Razón de Sortino por estrategia") + 
+  xlab("Estrategia") + ylab("Razón de Sortino") +
   expand_limits(x = 0) +
   expand_limits(y = 0) +
   PlantillaG
-print(G_RetAcum_MDD)
+print(G_SortinoR)
 ggsave(path = BaseDirPath, 
-       plot = G_RetAcum_MDD,
-       filename = "Ret.Acum_MDD por estrategia.png",
+       plot = G_SortinoR,
+       filename = "Razón de Sortino por estrategia.png",
        scale = 2
-)
+      )
 
-# Gráfico RetAcum/MDD para estrategias por encima del promedio
-Estrategias_Mayores_Media <-  Senales %>% filter(RAA_MPA > mean(RAA_MPA)) 
-G_RetAcum_MDD_MayMed <- ggplot(Estrategias_Mayores_Media, 
-                               aes(x = reorder(rownames(Estrategias_Mayores_Media), RAA_MPA), y = RAA_MPA)) +
+# Gráfico Razón de Sortino para estrategias por encima del promedio
+Estrategias_Sortino_Mayores_Media <-  Senales %>% filter(RazonSortinoAnual > mean(RazonSortinoAnual)) 
+G_Sortino_MayMed <- ggplot(Estrategias_Sortino_Mayores_Media, 
+                               aes(x = reorder(rownames(Estrategias_Sortino_Mayores_Media), RazonSortinoAnual), y = RazonSortinoAnual)) +
   geom_col() +
-  ggtitle("Ret.Acum/MDD para estrategias por encima del promedio") + 
-  xlab("Estrategia") + ylab("Ret.Acum/MDD") +
+  ggtitle("Razón de Sortino para estrategias por encima del promedio") + 
+  xlab("Estrategia") + ylab("Razón de Sortino") +
   expand_limits(x = 0) +
   expand_limits(y = 0) +
   PlantillaG
-print(G_RetAcum_MDD_MayMed)
+print(G_Sortino_MayMed)
 ggsave(path = BaseDirPath, 
-       plot = G_RetAcum_MDD_MayMed,
-       filename = "Ret.Acum_MDD para estrategias por encima del promedio.png",
+       plot = G_Sortino_MayMed,
+       filename = "Razón de Sortino para estrategias por encima del promedio.png",
        scale = 2
-)
+      )
 
-# Gráfico RetAcum/MDD para estrategias por encima del objetivo
-RA_MDD_Objetivo <- as.numeric(read_excel(ArchivoCargue, 
-                                         sheet = "RA_MDD_Objetivo",
+# Gráfico Razón de Sortino para estrategias por encima del objetivo
+Sortino_Objetivo <- as.numeric(read_excel(ArchivoCargue, 
+                                         sheet = "Sortino_Objetivo",
                                          col_names = FALSE
-)
-)
-Estrategias_Mayores_Objetivo <-  Senales %>% filter(RAA_MPA > RA_MDD_Objetivo)
+                                         )
+                              )
+Estrategias_Sortino_Mayores_Objetivo <-  Senales %>% filter(RazonSortinoAnual > Sortino_Objetivo)
 
-G_RetAcum_MDD_MayObj <- ggplot(Estrategias_Mayores_Objetivo, 
-                               aes(x = reorder(rownames(Estrategias_Mayores_Objetivo), RAA_MPA), y = RAA_MPA)) +
+G_Sortino_MayObj <- ggplot(Estrategias_Sortino_Mayores_Objetivo, 
+                               aes(x = reorder(rownames(Estrategias_Sortino_Mayores_Objetivo), RazonSortinoAnual), y = RazonSortinoAnual)) +
   geom_col() +
-  ggtitle("Ret.Acum/MDD para estrategias por encima del objetivo") + 
-  xlab("Estrategia") + ylab("Ret.Acum/MDD") +
+  ggtitle("Razón de Sortino para estrategias por encima del objetivo") + 
+  xlab("Estrategia") + ylab("Razón de Sortino") +
   expand_limits(x = 0) +
   expand_limits(y = 0) +
   PlantillaG
-print(G_RetAcum_MDD_MayObj)
+print(G_Sortino_MayObj)
 ggsave(path = BaseDirPath, 
-       plot = G_RetAcum_MDD_MayObj,
-       filename = "Ret.Acum_MDD para estrategias por encima del objetivo.png",
+       plot = G_Sortino_MayObj,
+       filename = "Razón de Sortino para estrategias por encima del objetivo.png",
        scale = 2
-)
-
+      )
 
 
 # 15. ESTRATEGIA ÓPTIMA [PROPUESTA] ###########################################
