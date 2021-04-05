@@ -990,6 +990,8 @@ Senales$RetAcum <- unlist(Senales$RetAcum)
 Senales$ValAcumB100 <- unlist(Senales$ValAcumB100)
 Senales$MaxPerdAcum <- unlist(Senales$MaxPerdAcum)
 Senales$RAA_MPA <- unlist(Senales$RAA_MPA)
+Senales$RazonSharpeAnual <- unlist(Senales$RazonSharpeAnual)
+Senales$RazonSortinoAnual <- unlist(Senales$RazonSortinoAnual)
 
 # Gráfico RetAcum/MDD por estrategia
 G_RetAcum_MDD <- ggplot(Senales, aes(x = rownames(Senales), y = RAA_MPA)) +
@@ -1007,9 +1009,9 @@ ggsave(path = BaseDirPath,
       )
 
 # Gráfico RetAcum/MDD para estrategias por encima del promedio
-Estrategias_Mayores_Media <-  Senales %>% filter(RAA_MPA > mean(RAA_MPA)) 
-G_RetAcum_MDD_MayMed <- ggplot(Estrategias_Mayores_Media, 
-                               aes(x = reorder(rownames(Estrategias_Mayores_Media), RAA_MPA), y = RAA_MPA)) +
+Estrategias_RAA_MPA_Mayores_Promedio <-  Senales %>% filter(RAA_MPA > mean(RAA_MPA)) 
+G_RetAcum_MDD_MayMed <- ggplot(Estrategias_RAA_MPA_Mayores_Promedio, 
+                               aes(x = reorder(rownames(Estrategias_RAA_MPA_Mayores_Promedio), RAA_MPA), y = RAA_MPA)) +
   geom_col() +
   ggtitle("Ret.Acum/MDD para estrategias por encima del promedio") + 
   xlab("Estrategia") + ylab("Ret.Acum/MDD") +
@@ -1029,6 +1031,116 @@ RA_MDD_Objetivo <- as.numeric(read_excel(ArchivoCargue,
                                          col_names = FALSE
                                         )
                              )
+Estrategias_RAA_MPA_Mayores_Objetivo <-  Senales %>% filter(RAA_MPA > RA_MDD_Objetivo)
+
+G_RetAcum_MDD_MayObj <- ggplot(Estrategias_RAA_MPA_Mayores_Objetivo, 
+                               aes(x = reorder(rownames(Estrategias_RAA_MPA_Mayores_Objetivo), RAA_MPA), y = RAA_MPA)) +
+  geom_col() +
+  ggtitle("Ret.Acum/MDD para estrategias por encima del objetivo") + 
+  xlab("Estrategia") + ylab("Ret.Acum/MDD") +
+  expand_limits(x = 0) +
+  expand_limits(y = 0) +
+  PlantillaG
+print(G_RetAcum_MDD_MayObj)
+ggsave(path = BaseDirPath, 
+       plot = G_RetAcum_MDD_MayObj,
+       filename = "Ret.Acum_MDD para estrategias por encima del objetivo.png",
+       scale = 2
+      )
+
+# Gráfico razón de Sharpe por estrategia
+G_SharpeR <- ggplot(Senales, aes(x = rownames(Senales), y = RazonSharpeAnual)) +
+  geom_col() +
+  ggtitle("Razón de Sharpe por estrategia") + 
+  xlab("Estrategia") + ylab("Razón de Sharpe") +
+  expand_limits(x = 0) +
+  expand_limits(y = 0) +
+  PlantillaG
+print(G_SharpeR)
+ggsave(path = BaseDirPath, 
+       plot = G_SharpeR,
+       filename = "Razón de Sharpe por estrategia.png",
+       scale = 2
+      )
+
+# Gráfico Razón de Sharpe para estrategias por encima del promedio
+Estrategias_Sharpe_Mayores_Promedio <-  Senales %>% filter(RazonSharpeAnual > mean(RazonSharpeAnual)) 
+G_Sharpe_MayMed <- ggplot(Estrategias_Sharpe_Mayores_Promedio, 
+                               aes(x = reorder(rownames(Estrategias_Sharpe_Mayores_Promedio), RazonSharpeAnual), y = RazonSharpeAnual)) +
+  geom_col() +
+  ggtitle("Razón de Sharpe para estrategias por encima del promedio") + 
+  xlab("Estrategia") + ylab("Razón de Sharpe") +
+  expand_limits(x = 0) +
+  expand_limits(y = 0) +
+  PlantillaG
+print(G_Sharpe_MayMed)
+ggsave(path = BaseDirPath, 
+       plot = G_Sharpe_MayMed,
+       filename = "Razón de Sharpe para estrategias por encima del promedio.png",
+       scale = 2
+      )
+
+# Gráfico Razón de Sharpe para estrategias por encima del objetivo
+Sharpe_Objetivo <- as.numeric(read_excel(ArchivoCargue, 
+                                         sheet = "Sharpe_Objetivo",
+                                         col_names = FALSE
+                                        )
+                             )
+Estrategias_Sharpe_Mayores_Objetivo <-  Senales %>% filter(RazonSharpeAnual > Sharpe_Objetivo)
+
+G_Sharpe_MayObj <- ggplot(Estrategias_Sharpe_Mayores_Objetivo, 
+                               aes(x = reorder(rownames(Estrategias_Sharpe_Mayores_Objetivo), RazonSharpeAnual), y = RazonSharpeAnual)) +
+  geom_col() +
+  ggtitle("Razón de Sharpe para estrategias por encima del objetivo") + 
+  xlab("Estrategia") + ylab("Razón de Sharpe") +
+  expand_limits(x = 0) +
+  expand_limits(y = 0) +
+  PlantillaG
+print(G_Sharpe_MayObj)
+ggsave(path = BaseDirPath, 
+       plot = G_Sharpe_MayObj,
+       filename = "Razón de Sharpe para estrategias por encima del objetivo.png",
+       scale = 2
+      )
+
+# Gráfico Razón de Sortino por estrategia
+G_RetAcum_MDD <- ggplot(Senales, aes(x = rownames(Senales), y = RAA_MPA)) +
+  geom_col() +
+  ggtitle("Ret.Acum/MDD por estrategia") + 
+  xlab("Estrategia") + ylab("Ret.Acum/MDD") +
+  expand_limits(x = 0) +
+  expand_limits(y = 0) +
+  PlantillaG
+print(G_RetAcum_MDD)
+ggsave(path = BaseDirPath, 
+       plot = G_RetAcum_MDD,
+       filename = "Ret.Acum_MDD por estrategia.png",
+       scale = 2
+)
+
+# Gráfico RetAcum/MDD para estrategias por encima del promedio
+Estrategias_Mayores_Media <-  Senales %>% filter(RAA_MPA > mean(RAA_MPA)) 
+G_RetAcum_MDD_MayMed <- ggplot(Estrategias_Mayores_Media, 
+                               aes(x = reorder(rownames(Estrategias_Mayores_Media), RAA_MPA), y = RAA_MPA)) +
+  geom_col() +
+  ggtitle("Ret.Acum/MDD para estrategias por encima del promedio") + 
+  xlab("Estrategia") + ylab("Ret.Acum/MDD") +
+  expand_limits(x = 0) +
+  expand_limits(y = 0) +
+  PlantillaG
+print(G_RetAcum_MDD_MayMed)
+ggsave(path = BaseDirPath, 
+       plot = G_RetAcum_MDD_MayMed,
+       filename = "Ret.Acum_MDD para estrategias por encima del promedio.png",
+       scale = 2
+)
+
+# Gráfico RetAcum/MDD para estrategias por encima del objetivo
+RA_MDD_Objetivo <- as.numeric(read_excel(ArchivoCargue, 
+                                         sheet = "RA_MDD_Objetivo",
+                                         col_names = FALSE
+)
+)
 Estrategias_Mayores_Objetivo <-  Senales %>% filter(RAA_MPA > RA_MDD_Objetivo)
 
 G_RetAcum_MDD_MayObj <- ggplot(Estrategias_Mayores_Objetivo, 
@@ -1044,7 +1156,8 @@ ggsave(path = BaseDirPath,
        plot = G_RetAcum_MDD_MayObj,
        filename = "Ret.Acum_MDD para estrategias por encima del objetivo.png",
        scale = 2
-      )
+)
+
 
 
 # 15. ESTRATEGIA ÓPTIMA [PROPUESTA] ###########################################
