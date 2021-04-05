@@ -1,5 +1,5 @@
-###  Estrategia y estadísticas ETF ECH (Réplica Swell)  ###
-###                     2021-04-04                      ###
+###  Estrategia y estadísticas ETF ECH (Réplica Swell vs Propuesto)  ###
+###                     2021-04-05                      ###
 ###                     Version 0.1                     ###  
 ###          Authors: Olga Serna / Ivan Serrano         ###
 
@@ -881,15 +881,17 @@ Fun_Est_Riesgo_Retorno <- function(BD) {
   HCVaRM <- mean(BDRETMONTHLY$RETMONTH[which(BDRETMONTHLY$RETMONTH < HVaRM)])
 
   # Otras estadísticas de riesgo - VaR histórico y CVaR histórico (anuales)  
-  BDRETMONTHLY$RET12MONTHS <- last(t(rollapplyr(data = (1+BDRETMONTHLY$RETMONTH),
-                                                width = 12, 
-                                                FUN = cumprod, 
-                                                fill = NA
-                                               )
+  BDRETMONTHLY$RET12MONTHS <- t(last(t(rollapplyr(data = (1+BDRETMONTHLY$RETMONTH),
+                                                  width = 12, 
+                                                  FUN = cumprod, 
+                                                  fill = NA
+                                                 )
+                                      )
                                     )
-                                  )
-  #HVaRA <- 
-  #HCVaRA <- 
+                               ) -
+                               1  
+  HVaRA <- quantile(x = BDRETMONTHLY$RET12MONTHS, probs = Significancia, na.rm = TRUE)
+  HCVaRA <- mean(BDRETMONTHLY$RET12MONTHS[which(BDRETMONTHLY$RET12MONTHS < HVaRA)], na.rm = TRUE)
   
   
   #PVaRM <- 
@@ -912,25 +914,35 @@ Fun_Est_Riesgo_Retorno <- function(BD) {
     PlantillaG
 
   #Resultados
-  BD_Est_Retorno_Riesgo <- list(BD, 
-                                RET_ACUM_ANUAL, 
-                                BDRETDAILY,
-                                BDRETMONTHLY,
-                                BDRETANNUALY,
-                                VAL_PORT_ACUM_B100, 
-                                MAXPERDACUM, RAA_MPA, 
-                                G_VAL_PORT_ACUM_B100
+  BD_Est_Retorno_Riesgo <- list(BD = BD, 
+                                BDRDiario = BDRETDAILY,
+                                BDRMensual = BDRETMONTHLY,
+                                BDRAnual = BDRETANNUALY,
+                                VAlPortAcumB100 = VAL_PORT_ACUM_B100, 
+                                RetAcumAnual = RET_ACUM_ANUAL,
+                                MaxPerdAcum = MAXPERDACUM, 
+                                RAA_MPA = RAA_MPA, 
+                                VolatilidadFH = VolFH,
+                                VolatilidadDiaria = VolD,
+                                VolatilidadMensual = VolM,
+                                VolatilidadAnual = VolA,
+                                RetornoPromedioLRAnual = RET_PROM_LR_ANUAL,
+                                RetornoPromedioAnual = RET_PROM_ANUAL,
+                                RazonSharpeAnual = SharpeRAnual,
+                                VolatilidadInferiorObjetivoFH = VolInfObjFH,
+                                VolatilidadInferiorObjetivoDiaria = VolInfObjD,
+                                VolatilidadInferiorObjetivoMensual = VolInfObjM,
+                                VolatilidadInferiorObjetivoAnual = VolInfObjA,
+                                RetornoPromedioObjetivoAnual = RET_PROM_OBJ_ANUAL,
+                                RazonSortinoAnual = SortinoRAnual,
+                                VaRHistoricoDiario = HVaRD,
+                                CVaRHistoricoDiario = HCVaRD,
+                                VaRHistoricoMensual = HVaRM,
+                                CVaRHistoricoMensual = HCVaRM,
+                                VaRHistoricoAnual = HVaRA,
+                                CVaRHistoricoAnual = HCVaRA,
+                                Graf_ValPortAcumB100 = G_VAL_PORT_ACUM_B100
                                )
-  names(BD_Est_Retorno_Riesgo) <- c("BD", 
-                                    "RetAcumAnual", 
-                                    "BDRDiario",
-                                    "BDRMensual",
-                                    "BDRAnual",
-                                    "VAlPortAcumB100", 
-                                    "MaxPerdAcum", 
-                                    "RAA_MPA", 
-                                    "Graf_ValPortAcumB100"
-                                   )
   
   return(BD_Est_Retorno_Riesgo)
   
@@ -944,10 +956,29 @@ names(BDPSList) <- rownames(Senales)
 
 # Función para obtención de estadísticas totales de retorno y riesgo de cada estrategia
 Fun_R_R_Tot <- function(List) {
-  R_R <- data.frame(RetAcumAnual = List$RetAcumAnual,
-                    VAlPortAcumB100 = List$VAlPortAcumB100,
+  R_R <- data.frame(VAlPortAcumB100 = List$VAlPortAcumB100,
+                    RetAcumAnual = List$RetAcumAnual,
                     MaxPerdAcum = List$MaxPerdAcum,
-                    RAA_MPA = List$RAA_MPA
+                    RAA_MPA = List$RAA_MPA,
+                    VolatilidadFH = List$VolatilidadFH,
+                    VolatilidadDiaria = List$VolatilidadDiaria,
+                    VolatilidadMensual = List$VolatilidadMensual,
+                    VolatilidadAnual = List$VolatilidadAnual,
+                    RetornoPromedioLRAnual = List$RetornoPromedioLRAnual,
+                    RetornoPromedioAnual = List$RetornoPromedioAnual,
+                    RazonSharpeAnual = List$RazonSharpeAnual,
+                    VolatilidadInferiorObjetivoFH = List$VolatilidadInferiorObjetivoFH,
+                    VolatilidadInferiorObjetivoDiaria = List$VolatilidadInferiorObjetivoDiaria,
+                    VolatilidadInferiorObjetivoMensual = List$VolatilidadInferiorObjetivoMensual,
+                    VolatilidadInferiorObjetivoAnual = List$VolatilidadInferiorObjetivoAnual,
+                    RetornoPromedioObjetivoAnual = List$RetornoPromedioObjetivoAnual,
+                    RazonSortinoAnual = List$RazonSortinoAnual,
+                    VaRHistoricoDiario = List$VaRHistoricoDiario,
+                    CVaRHistoricoDiario = List$CVaRHistoricoDiario,
+                    VaRHistoricoMensual = List$VaRHistoricoMensual,
+                    CVaRHistoricoMensual = List$CVaRHistoricoMensual,
+                    VaRHistoricoAnual = List$VaRHistoricoAnual,
+                    CVaRHistoricoAnual = List$CVaRHistoricoAnual
                    )
   return(R_R)
 }
