@@ -1,10 +1,10 @@
 ###  Estrategia y estadísticas ETF ECH (Réplica Swell)  ###
-###                     2021-04-02                      ###
-###                     Version 0.0                     ###  
+###                     2021-04-04                      ###
+###                     Version 0.1                     ###  
 ###          Authors: Olga Serna / Ivan Serrano         ###
 
 
-# 00. DESCRIPCIÓN E INSTRUCCIONES ##############################################
+# 00. DESCRIPCIÓN E INSTRUCCIONES #############################################
 
 # 0.1 Objetivo
 
@@ -25,12 +25,16 @@
 #       señal intradiaria pero no para el cálculo de la vela diaria y por lo tanto 
 #       de los fractales intradiarios de referencia.
 
-# 0.2.4 Para los cálculos de valoración, siempre se asumen posiciones largas, 
+# 0.2.4 Para los cálculos de valoración, siempre se asumen posiciones largas.
+
 # 0.2.5 Para los cálculos de retornos, se tiene en cuenta si la posición 
 #       realmente es larga o corta.
 
-# 0.2.3 Se consigue operar en el mercado a los precios de cierre de la franja,
+# 0.2.6 Se consigue operar en el mercado a los precios de cierre de la franja,
 #       con costos transaccionales asociados a un bid-ask spread nulo.
+
+# 0.2.7 El retorno objetivo empleado para el cálculo de la razón de Sortino
+#       corresponde al de la tasa libre de riesgo (US Treasury 1-3y).
 
 # 0.3 Instrucciones
 
@@ -38,28 +42,41 @@
 #       los insumos en la misma ruta donde se encuentra ubicado el código 
 #       "Estrategia y estadísticas NOMBREACTIVO (propuesto).R". Estos
 #       insumos incluyen:
-#       - Hoja "OHLC": histórico de precios OHLC.
+#       - Hoja "OHLC Activo": histórico de precios OHLC del activo.
+#       - Hoja "OHLC libre de riesgo": histórico de precios OHLC del activo
+#                                      empleado para calcular el retorno objetivo
+#                                      en el cálculo de la razón de Sharpe 
+#                                      (y como retorno objetivo en la razón de Sortino).
+#       - Hoja "N_FH_por_dia": número de FH de negociación a considerar en cada día.
 #       - Hoja "N_FH_Cierre_Descartadas": número de FH descartadas para negociar
 #                                         antes del cierre.
-#       - Hoja "U_MDD_Objetivo": valor objetivo de la razón U/MDD empleado para
-#                                solo visualizar la información de las estrategias
-#                                que cumplan con esta condición
+#       - Hoja "U_MDD_Objetivo": valor objetivo de la razón Utilidad/MDD empleado
+#                                para visualizar solo la información de las 
+#                                estrategias que cumplan con esta condición.
+#       - Hoja "RA_MDD_Objetivo": valor objetivo de la razón RetornoAnual/MDD 
+#                                 empleado para visualizar solo la información 
+#                                 de las estrategias que cumplan con esta condición.
+#       - Hoja "VentanaMovilVol": periodo de tiempo (en días) a considerar para
+#                                 el cálculo de las volatilidades.
+#       - Hoja "Significancia": nivel de siginificancia deseado para los cálculos
+#                               de VaR y CVaR.
 #       El nombre del archivo de Excel debe asignarse a la variable "ArchivoCargue",
 #       modificando la primera línea de código en la sección "02. LECTURA Y 
-#       PREPARACIÓN DE DATOS". Se debe verificar que el archivo solo contenga la
+#       PREPARACIÓN DE DATOS". Se debe verificar que las hojas solo contengan la
 #       información mencionada y nada adicional (incluso celdas borradas).
 
-# 0.3.2 Guardar con el nombre "Parametros fractales.xlsx" el archivo que contiene
-#       las reglas y variables que se emplean para las condiciones de compra y
-#       venta de cada una de las estrategias diarias e intradiarias, así como 
-#       de la estrategia intradiaria de referencia, que debe quedar en el última
-#       fila del archivo. Se debe verificar que el archivo solo contenga la 
-#       información mencionada y nada adicional (incluso celdas borradas).
+# 0.3.2 Guardar en la misma ruta y con el nombre con el nombre "Parametros fractales.xlsx",
+#       el archivo que contiene las reglas y variables que se emplean para las
+#       condiciones de compra y venta de cada una de las estrategias diarias e 
+#       intradiarias, así comode la estrategia intradiaria de referencia, que 
+#       debe quedar en el última fila del archivo. Se debe verificar que el 
+#       archivo solo contenga la información mencionada y nada adicional 
+#       (incluso celdas borradas).
 
 # 0.3.3 La última sección del código permite visualizar la información y 
 #       estadísticas de una estrategia en particular.
 
-# 01. PAQUETES Y CONFIGURACIONES ###############################################
+# 01. PAQUETES Y CONFIGURACIONES ##############################################
 
 # Paquetes
 Libraries <- c("readxl",      # read_excel
@@ -68,7 +85,7 @@ Libraries <- c("readxl",      # read_excel
                "lubridate",   # makedatetime, year, month,.., second
                "ggplot2",     # ggplot  
                "data.table",  # Data manipulation (aggregation with . operator)
-               "zoo",         # rollapplyr
+               "zoo",         # rollapplyr, rollapply
                "tidyr",       # fill 
                "dplyr",       # group_by, select, mutate, slice_max 
                "na.tools"     # na.replace
@@ -116,11 +133,11 @@ PlantillaG <- theme(plot.title = element_text(color = "grey20", angle = 0, hjust
                    )
 
 
-# 02. LECTURA Y PREPARACIÓN DE DATOS ###########################################
+# 02. LECTURA Y PREPARACIÓN DE DATOS ##########################################
 
 # Lectura de archivo histórico de precios 
 ArchivoCargue <- "Data ETF SPXL.xlsx"
-BDPI <- read_excel(ArchivoCargue, sheet = "OHLC")
+BDPI <- read_excel(ArchivoCargue, sheet = "OHLC Activo")
 
 # Asignación de títulos a las columnas
 colnames(BDPI) <- c("DATE","FRAME","VOLUME","OPEN","HIGH","LOW","CLOSE")
@@ -180,7 +197,7 @@ ParamFracI$VariableVenta <- paste0("BDPI$",ParamFracI$`Variable venta`)
 ParamFracI$RefVenta <- paste0("BDPI$",ParamFracI$`Ref. venta`)
 
 
-# 04. CÁLCULO SEÑALES DE FRACTALES INTRADIARIOS ################################
+# 04. CÁLCULO SEÑALES DE FRACTALES INTRADIARIOS ###############################
 
 # Cálculo de la función sobre la referencia correspondiente a cada fractal
 # intradiario de compra.Ejemplo FI1:
@@ -251,8 +268,8 @@ BDPI$DATE <- make_datetime(year = year(BDPI$DATEFRAME),
 NFHC <- as.numeric(read_excel(ArchivoCargue, 
                               sheet = "N_FH_Cierre_Descartadas",
                               col_names = FALSE
-)
-)
+                             )
+                  )
 
 if (NFHC == 0) {
   
@@ -289,7 +306,7 @@ BDPD <- BDPD[,
 ]
 
 
-# 07. CODIFICACIÓN DE FRACTALES DIARIOS (INCLUYE FIRX) #########################
+# 07. CODIFICACIÓN DE FRACTALES DIARIOS (INCLUYE FIRX) ########################
 
 # Variables de codificación de fractales diarios
 ParamFracD <- read_excel(ArchivoFractales, sheet = "Parametros fractales")
@@ -336,7 +353,7 @@ ParamFracR$VariableCompra <- paste0("BDPI$",ParamFracD$`Variable compra`)
 ParamFracR$VariableVenta <- paste0("BDPI$",ParamFracD$`Variable venta`)
 
 
-# 08. CÁLCULO SEÑALES DE FRACTALES DIARIOS #####################################
+# 08. CÁLCULO SEÑALES DE FRACTALES DIARIOS ####################################
 
 # Cálculo de la función sobre la referencia correspondiente a cada fractal
 # diario de compra.Ejemplo FD1:
@@ -395,7 +412,7 @@ eval(parse(text = FunSenFDX))
 BDPD <- fill(data = BDPD, ParamFracD$Fractal, .direction = "down")
 
 
-# 09. CÁLCULO SEÑALES DE FRACTALES INTRADIARIOS DE REFERENCIA ##################
+# 09. CÁLCULO SEÑALES DE FRACTALES INTRADIARIOS DE REFERENCIA #################
 
 # Importe a la base de datos intradiaria de la función sobre la referencia 
 # correspondiente a cada fractal diario de referencia de venta. Ejemplo FD1: 
@@ -693,6 +710,44 @@ TElapsed <- EndT - StartT
 
 # 13. CÁLCULO ESTADÍSTICAS RETORNO Y RIESGO [PROPUESTA] #######################
 
+# Variables y parámetros para los cálculos - Número de franjas horarias por día
+NFHD <- as.numeric(read_excel(ArchivoCargue, 
+                              sheet = "N_FH_por_dia",
+                              col_names = FALSE
+                             )
+                  )
+
+# Variables y parámetros para los cálculos - Nivel de significancia deseado
+Significancia <- as.numeric(read_excel(ArchivoCargue, 
+                                  sheet = "Significancia",
+                                  col_names = FALSE
+                                 )
+                      )
+
+# Variables y parámetros para los cálculos - Ventana móvil para volatilidades
+VentanaMovilVol_Dias <- as.numeric(read_excel(ArchivoCargue, 
+                                              sheet = "VentanaMovilVol",
+                                              col_names = FALSE
+                                             )
+                                  )
+VentanaMovilVol_FH <- VentanaMovilVol_Dias*(NFHD - NFHC)
+
+# Variables y parámetros para los cálculos - BD activo libre de riesgo
+BDLibreRiesgo <- read_excel(ArchivoCargue, sheet = "OHLC libre de riesgo")
+colnames(BDLibreRiesgo) <- c("DATE","FRAME","VOLUME","OPEN","HIGH","LOW","CLOSE")
+BDLibreRiesgo$DATEFRAME <- make_datetime(year = year(BDLibreRiesgo$DATE), 
+                                         month = month(BDLibreRiesgo$DATE), 
+                                         day = day(BDLibreRiesgo$DATE), 
+                                         hour = hour(BDLibreRiesgo$FRAME), 
+                                         min = minute(BDLibreRiesgo$FRAME), 
+                                         sec = second(BDLibreRiesgo$FRAME)
+                                        )
+BDLibreRiesgo[,c("DATE","FRAME")] <- NULL
+BDLibreRiesgo <- BDLibreRiesgo[,c("DATEFRAME","VOLUME","OPEN","HIGH","LOW","CLOSE")]
+BDLibreRiesgo <- BDLibreRiesgo[order(BDLibreRiesgo$DATEFRAME),]
+NLR <- length(BDLibreRiesgo$DATEFRAME)
+
+# Función para el cálculo de estadísticas de riesgo y retorno
 Fun_Est_Riesgo_Retorno <- function(BD) {
   
   # Columnas
@@ -707,42 +762,140 @@ Fun_Est_Riesgo_Retorno <- function(BD) {
   # Retorno acumulado y acumulado base 100
   BD$RET_ACUM <- c(NA, (cumprod(1 + BD$RET[2:N]) - 1))
   BD$VAL_PORT_ACUM_B100 <- (BD$RET_ACUM + 1) * 100
-  # Pérdidad acumulada y máxima pérdida acumulada
+  # Pérdida acumulada y máxima pérdida acumulada
   BD$PERD_ACUM <- c(NA, (BD$VAL_PORT_ACUM_B100[2:N]) / (cummax(BD$VAL_PORT_ACUM_B100[2:N])) - 1)
   BD$MAX_PERD_ACUM <- c(NA, cummin(BD$PERD_ACUM[2:N]))
   # Retornos mensuales
-  RETMONTHLY <- BD %>% mutate(YEARMONTH = paste0(year(DATE), "-", format(DATE, "%m"))) %>%
-                       select(DATEFRAME, YEARMONTH, RET) %>% group_by(YEARMONTH) %>%
-                       mutate(RETMONTH = cumprod(1 + na.replace(RET, 0)) - 1) %>%
+  BDRETDAILY <- BD %>% select(DATEFRAME, DATE, RET) %>% 
+                       group_by(DATE) %>%
+                       mutate(RETDAY = cumprod(1 + na.replace(RET, 0)) - 1) %>%
                        top_n(1, DATEFRAME) %>%
                        select(-DATEFRAME, -RET)
+  # Retornos mensuales
+  BDRETMONTHLY <- BD %>% mutate(YEARMONTH = paste0(year(DATE), "-", format(DATE, "%m"))) %>%
+                         select(DATEFRAME, YEARMONTH, RET) %>% 
+                         group_by(YEARMONTH) %>%
+                         mutate(RETMONTH = cumprod(1 + na.replace(RET, 0)) - 1) %>%
+                         top_n(1, DATEFRAME) %>%
+                         select(-DATEFRAME, -RET)
   # Retornos anuales
-  RETANNUALY <- BD %>% mutate(YEAR = year(DATEFRAME)) %>%
-                       select(DATEFRAME, YEAR, RET) %>% group_by(YEAR) %>%
-                       mutate(RETYEAR = cumprod(1 + na.replace(RET, 0)) - 1) %>%
-                       top_n(1, DATEFRAME)  %>%
-                       select(-DATEFRAME, -RET)
+  BDRETANNUALY <- BD %>% mutate(YEAR = year(DATEFRAME)) %>%
+                         select(DATEFRAME, YEAR, RET) %>% 
+                         group_by(YEAR) %>%
+                         mutate(RETYEAR = cumprod(1 + na.replace(RET, 0)) - 1) %>%
+                         top_n(1, DATEFRAME)  %>%
+                         select(-DATEFRAME, -RET)
   
   # Estadísticas finales retorno y riesgo
   RET_ACUM <- BD$RET_ACUM[N] # Retorno acumulado desde inicio
   VAL_PORT_ACUM_B100 <- BD$VAL_PORT_ACUM_B100[N] # Retorno acumulado base 100 desde inicio
-  RET_ACUM_ANUAL <- (1 + RET_ACUM)^(365*(13-NFHC)/(N-1)) - 1 # Retorno acumulado anualizado desde inicio
+  RET_ACUM_ANUAL <- (1 + RET_ACUM)^(365*(NFHD-NFHC)/(N-1)) - 1 # Retorno acumulado anualizado desde inicio
   MAXPERDACUM <- BD$MAX_PERD_ACUM[N] # Máxima pérdida desde inicio (MDD)
   RAA_MPA <- RET_ACUM_ANUAL / -MAXPERDACUM # Retorno anual ajustado por riesgo de pérdida
   
-  # Otras estadísticas de riesgo
-  #Vol1M <- 
-  #Sig <- as.numeric(read_excel(ArchivoCargue, 
-  #                             sheet = "Significancia",
-  #                             col_names = FALSE
-  #                            )
-  #                 )
-  #HVaR1M <- 
-  #HCVaR1M <- 
-  #PVaR1M <- 
-  #PCVaR1M <- 
-  #SharpeR <- 
-  #SortinoR <- 
+  # Otras estadísticas de riesgo - Volatilidad FH
+  BD$VolFH <- rollapplyr(data = BD$RET, width = VentanaMovilVol_FH, FUN = sd, fill = NA)
+  VolFH <- sd(BD$RET, na.rm = TRUE)
+  
+  # Otras estadísticas de riesgo - Volatilidad diaria
+  BDRETDAILY$VolD <- rollapplyr(data = BDRETDAILY$RETDAY, width = VentanaMovilVol_Dias, FUN = sd, fill = NA)
+  VolD <- sd(BDRETDAILY$RETDAY, na.rm = TRUE)
+  
+  # Otras estadísticas de riesgo - Volatilidad mensual
+  VolM <- BDRETDAILY %>% mutate(YEARMONTH = paste0(year(DATE), "-", format(DATE, "%m"))) %>%
+                         mutate(VolM = sqrt(20) * VolD) %>%
+                         select(DATE, YEARMONTH, VolM) %>% 
+                         group_by(YEARMONTH) %>%
+                         top_n(1, DATE) %>%
+                         select(-DATE)
+  BDRETMONTHLY$VolM <- VolM$VolM
+  VolM <- sqrt(20) * VolD
+
+  # Otras estadísticas de riesgo - Volatilidad anual
+  VolA <- BDRETDAILY %>% mutate(YEAR = year(DATE)) %>%
+                         mutate(VolA = sqrt(252) * VolD) %>%
+                         select(DATE, YEAR, VolA) %>% 
+                         group_by(YEAR) %>%
+                         top_n(1, DATE)  %>%
+                         select(-DATE)
+  BDRETANNUALY$VolA <- VolA$VolA
+  VolA <- sqrt(252) * VolD
+  
+  # Otras estadísticas de riesgo - Razón de Sharpe (anual)
+  BDLibreRiesgo$RETLR <- c(0, rep(NA, (NLR-1)))
+  BDLibreRiesgo$RETLR <- ((BDLibreRiesgo$CLOSE / c(NA, BDLibreRiesgo$CLOSE[1:NLR-1]) - 1))
+  BDLibreRiesgo <- BDLibreRiesgo[, c("DATEFRAME", "RETLR")]
+  BD <- BD %>% left_join(BDLibreRiesgo, by = c("DATEFRAME"))
+  BD$RETLR[is.na(BD$RETLR)] <- 0
+  BD$RET_ACUM_LR <- c(0, rep(NA, (N-1)))
+  BD$RET_ACUM_LR <- c(NA, (cumprod(1 + BD$RETLR[2:N]) - 1))
+  BDRETLRDAILY <- BD %>% select(DATEFRAME, DATE, RETLR) %>% 
+    group_by(DATE) %>%
+    mutate(RETLRDAY = cumprod(1 + na.replace(RETLR, 0)) - 1) %>%
+    top_n(1, DATEFRAME) %>%
+    select(-DATEFRAME, -RETLR)
+  BDRETDAILY$RETLRDAY <- BDRETLRDAILY$RETLRDAY
+  RET_PROM_LR_ANUAL <- mean(BDRETDAILY$RETLRDAY) * 30 * 12
+  RET_PROM_ANUAL <- mean(BDRETDAILY$RETDAY) * 30 * 12
+  SharpeRAnual <- (RET_PROM_ANUAL - RET_PROM_LR_ANUAL) / VolA
+  
+  # Otras estadísticas de riesgo - Razón de Sortino (anual)
+  BD$RETINFOBJ <- ifelse(BD$RET > BD$RETLR, 0, (BD$RET - BD$RETLR))
+  BD$VolInfObjFH <- rollapplyr(data = BD$RETINFOBJ, width = VentanaMovilVol_FH, FUN = sd, fill = NA)
+  VolInfObjFH <- sd(BD$RETINFOBJ, na.rm = TRUE)
+  
+  BDRETDAILY$RETINFOBJ <- ifelse(BDRETDAILY$RETDAY > BDRETDAILY$RETLRDAY, 
+                                 0, 
+                                 (BDRETDAILY$RETDAY - BDRETDAILY$RETLRDAY)
+                                )
+  BDRETDAILY$VolInfObjD <- rollapplyr(data = BDRETDAILY$RETINFOBJ, width = VentanaMovilVol_Dias, FUN = sd, fill = NA)
+  VolInfObjD <- sd(BDRETDAILY$RETINFOBJ, na.rm = TRUE)
+  
+  VolInfObjM <- BDRETDAILY %>% mutate(YEARMONTH = paste0(year(DATE), "-", format(DATE, "%m"))) %>%
+                               mutate(VolInfObjM = sqrt(20) * VolInfObjD) %>%
+                               select(DATE, YEARMONTH, VolInfObjM) %>% 
+                               group_by(YEARMONTH) %>%
+                               top_n(1, DATE) %>%
+                               select(-DATE)
+  BDRETMONTHLY$VolInfObjM <- VolInfObjM$VolInfObjM
+  VolInfObjM <- sqrt(20) * VolInfObjD
+  
+  VolInfObjA <- BDRETDAILY %>% mutate(YEAR = year(DATE)) %>%
+                               mutate(VolInfObjA = sqrt(252) * VolInfObjD) %>%
+                               select(DATE, YEAR, VolInfObjA) %>% 
+                               group_by(YEAR) %>%
+                               top_n(1, DATE)  %>%
+                               select(-DATE)
+  BDRETANNUALY$VolInfObjA <- VolInfObjA$VolInfObjA
+  VolInfObjA <- sqrt(252) * VolInfObjD
+
+  RET_PROM_OBJ_ANUAL <- RET_PROM_LR_ANUAL
+  SortinoRAnual <- (RET_PROM_ANUAL - RET_PROM_OBJ_ANUAL) / VolInfObjA
+  
+  # Otras estadísticas de riesgo - VaR histórico y CVaR histórico (diarios)
+  HVaRD <- quantile(x = BDRETDAILY$RETDAY, probs = Significancia)
+  HCVaRD <- mean(BDRETDAILY$RETDAY[which(BDRETDAILY$RETDAY < HVaRD)])
+  
+  # Otras estadísticas de riesgo - VaR histórico y CVaR histórico (mensuales)
+  HVaRM <- quantile(x = BDRETMONTHLY$RETMONTH, probs = Significancia)
+  HCVaRM <- mean(BDRETMONTHLY$RETMONTH[which(BDRETMONTHLY$RETMONTH < HVaRM)])
+
+  # Otras estadísticas de riesgo - VaR histórico y CVaR histórico (anuales)  
+  BDRETMONTHLY$RET12MONTHS <- last(t(rollapplyr(data = (1+BDRETMONTHLY$RETMONTH),
+                                                width = 12, 
+                                                FUN = cumprod, 
+                                                fill = NA
+                                               )
+                                    )
+                                  )
+  #HVaRA <- 
+  #HCVaRA <- 
+  
+  
+  #PVaRM <- 
+  #PCVaRM <- 
+  #PVaRA <- 
+  #PCVaRA <- 
   
   #Porcentaje de retornos negativos
   #Frecuencia de retornos menores a -1%, -5%, -10%
@@ -761,16 +914,18 @@ Fun_Est_Riesgo_Retorno <- function(BD) {
   #Resultados
   BD_Est_Retorno_Riesgo <- list(BD, 
                                 RET_ACUM_ANUAL, 
-                                RETMONTHLY,
-                                RETANNUALY,
+                                BDRETDAILY,
+                                BDRETMONTHLY,
+                                BDRETANNUALY,
                                 VAL_PORT_ACUM_B100, 
                                 MAXPERDACUM, RAA_MPA, 
                                 G_VAL_PORT_ACUM_B100
                                )
   names(BD_Est_Retorno_Riesgo) <- c("BD", 
                                     "RetAcumAnual", 
-                                    "RMensual",
-                                    "RAnual",
+                                    "BDRDiario",
+                                    "BDRMensual",
+                                    "BDRAnual",
                                     "VAlPortAcumB100", 
                                     "MaxPerdAcum", 
                                     "RAA_MPA", 
@@ -886,19 +1041,22 @@ ggsave(path = BaseDirPath,
        scale = 2
       ) 
 
-# Visualización y exportación de estadísticas anuales y mensuales de retorno y riesgo de estrategia óptima
-View(BDPSList[[EstrategiaOpt]]$RAnual)
-addWorksheet(wb = ArchivoResultadosOpt, sheetName = "RetornosAnuales")
-writeData(wb = ArchivoResultadosOpt, sheet = "RetornosAnuales", x = BDPSList[[EstrategiaOpt]]$RAnual)
-View(BDPSList[[EstrategiaOpt]]$RMensual)
+# Visualización y exportación de estadísticas de retorno y riesgo de estrategia óptima
+View(BDPSList[[EstrategiaOpt]]$BDRDiario)
+addWorksheet(wb = ArchivoResultadosOpt, sheetName = "RetornosDiarios")
+writeData(wb = ArchivoResultadosOpt, sheet = "RetornosDiarios", x = BDPSList[[EstrategiaOpt]]$BDRDiario)
+View(BDPSList[[EstrategiaOpt]]$BDRMensual)
 addWorksheet(wb = ArchivoResultadosOpt, sheetName = "RetornosMensuales")
-writeData(wb = ArchivoResultadosOpt, sheet = "RetornosMensuales", x = BDPSList[[EstrategiaOpt]]$RMensual)
+writeData(wb = ArchivoResultadosOpt, sheet = "RetornosMensuales", x = BDPSList[[EstrategiaOpt]]$BDRMensual)
+View(BDPSList[[EstrategiaOpt]]$BDRAnual)
+addWorksheet(wb = ArchivoResultadosOpt, sheetName = "RetornosAnuales")
+writeData(wb = ArchivoResultadosOpt, sheet = "RetornosAnuales", x = BDPSList[[EstrategiaOpt]]$BDRAnual)
 Nombre_BD_EstrategiaOpt <- Senales$NombreBD[NEstrategiaOpt]
 NombreArchivoResultadosOpt <- paste0(Nombre_BD_EstrategiaOpt, "_Propuesta.xlsx")
 saveWorkbook(wb = ArchivoResultadosOpt, 
              file = NombreArchivoResultadosOpt, 
              overwrite = TRUE
-             )
+            )
 
 
 # 16. ESTRATEGIAS ADICIONALES [PROPUESTA] #####################################
@@ -931,13 +1089,16 @@ ggsave(path = BaseDirPath,
        scale = 2
       ) 
 
-# Visualización y exportación de estadísticas anuales y mensuales de retorno y riesgo de estrategia seleccionada
-View(BDPSList[[EstrategiaSel]]$RAnual)
-addWorksheet(wb = ArchivoResultadosSel, sheetName = "RetornosAnuales")
-writeData(wb = ArchivoResultadosSel, sheet = "RetornosAnuales", x = BDPSList[[EstrategiaSel]]$RAnual)
-View(BDPSList[[EstrategiaSel]]$RMensual)
+# Visualización y exportación de estadísticas de retorno y riesgo de estrategia seleccionada
+View(BDPSList[[EstrategiaSel]]$BDRDiario)
+addWorksheet(wb = ArchivoResultadosSel, sheetName = "RetornosDiarios")
+writeData(wb = ArchivoResultadosSel, sheet = "RetornosDiarios", x = BDPSList[[EstrategiaSel]]$BDRDiario)
+View(BDPSList[[EstrategiaSel]]$BDRMensual)
 addWorksheet(wb = ArchivoResultadosSel, sheetName = "RetornosMensuales")
-writeData(wb = ArchivoResultadosSel, sheet = "RetornosMensuales", x = BDPSList[[EstrategiaSel]]$RMensual)
+writeData(wb = ArchivoResultadosSel, sheet = "RetornosMensuales", x = BDPSList[[EstrategiaSel]]$BDRMensual)
+View(BDPSList[[EstrategiaSel]]$BDRAnual)
+addWorksheet(wb = ArchivoResultadosSel, sheetName = "RetornosAnuales")
+writeData(wb = ArchivoResultadosSel, sheet = "RetornosAnuales", x = BDPSList[[EstrategiaSel]]$BDRAnual)
 Nombre_BD_EstrategiaSel <- Senales$NombreBD[NEstrategiaSel]
 NombreArchivoResultadosSel <- paste0(Nombre_BD_EstrategiaSel, "_Propuesta.xlsx")
 saveWorkbook(wb = ArchivoResultadosSel, 
@@ -946,7 +1107,7 @@ saveWorkbook(wb = ArchivoResultadosSel,
             )
 
 
-# 17. CÁLCULO ESTADÍSTICAS RETORNO Y RIESGO [SWELL] #############################
+# 17. CÁLCULO ESTADÍSTICAS RETORNO Y RIESGO [SWELL] ###########################
 
 Fun_Est_U_MPA <- function(BD) {
   
@@ -1028,7 +1189,7 @@ Fun_Est_U_MPA <- function(BD) {
 BDListSwell <- lapply(BDList, Fun_Est_U_MPA)
 names(BDListSwell) <- rownames(SenalesSwell)
 
-# 18. RESUMEN ESTADÍSTICAS ESTRATEGIAS [SWELL] ########################################
+# 18. RESUMEN ESTADÍSTICAS ESTRATEGIAS [SWELL] ################################
 
 # Función para obtención de estadísticas retorno y riesgo de cada estrategia
 Fun_UA_MPA <- function(List) {
@@ -1081,7 +1242,7 @@ ggplot(Est_may_Sup, aes(x = reorder(rownames(Est_may_Sup), UA_MPA), y = UA_MPA))
   PlantillaG
 
 
-# 19. ESTRATEGIA ÓPTIMA [SWELL] #######################################################
+# 19. ESTRATEGIA ÓPTIMA [SWELL] ###############################################
 
 NEstrategiaOpt <- which.max(SenalesSwell$UA_MPA)
 EstrategiaOpt <- rownames(SenalesSwell)[NEstrategiaOpt]
@@ -1096,7 +1257,7 @@ write.xlsx(x = BDListSwell[[EstrategiaOpt]]$BD,
           )
 
 
-# 20. ESTRATEGIAS ADICIONALES [SWELL] #################################################
+# 20. ESTRATEGIAS ADICIONALES [SWELL] #########################################
 
 # Para visualizar la información y estadísticas de una estrategia en particular,
 # a continuación asigne a la variable "Estrategia" la cambinación deseada de 
@@ -1116,7 +1277,7 @@ write.xlsx(x = BDListSwell[[Estrategia]]$BD,
           )
 
 
-# 21. COMPARACIÓN SWELL vs PROPUESTA #########################################
+# 21. COMPARACIÓN SWELL vs PROPUESTA ##########################################
 
 # Estrategia óptima - Perspectiva Swell vs. Perspectiva propuesta
 RetEstOptSwell <- (BDListSwell[[EstrategiaOpt]]$BD$UTILIDAD / shift(BDListSwell[[EstrategiaOpt]]$BD$PA, n=1, fill =NA))
@@ -1144,7 +1305,7 @@ ggsave(path = BaseDirPath,
 
 # XX. OBSERVACIONES ###########################################################
 
-# Otras estadisticas ademas de R y MDD
+ 
 # Falta apalancamiento
 # Falta comision swell, SL y TP
-# 
+# Ajustar instrucciones
