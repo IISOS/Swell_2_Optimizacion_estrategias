@@ -1,7 +1,7 @@
 ###  Estrategia y estadísticas ETF ECH (Réplica Swell vs Propuesto)  ###
-###                     2021-04-05                      ###
-###                     Version 0.1                     ###  
-###          Authors: Olga Serna / Ivan Serrano         ###
+###                            2021-04-11                            ###
+###                           Version 0.2                            ###  
+###                Authors: Olga Serna / Ivan Serrano                ###
 
 
 # 00. DESCRIPCIÓN E INSTRUCCIONES #############################################
@@ -765,22 +765,22 @@ Fun_Est_Riesgo_Retorno <- function(BD) {
   # Pérdida acumulada y máxima pérdida acumulada
   BD$PERD_ACUM <- c(NA, (BD$VAL_PORT_ACUM_B100[2:N]) / (cummax(BD$VAL_PORT_ACUM_B100[2:N])) - 1)
   BD$MAX_PERD_ACUM <- c(NA, cummin(BD$PERD_ACUM[2:N]))
-  # Retornos mensuales
-  BDRETDAILY <- BD %>% select(DATEFRAME, DATE, RET) %>% 
+  # BD diaria
+  BDRETDAILY <- BD %>% select(DATEFRAME, DATE, RET, MAX_PERD_ACUM) %>% 
                        group_by(DATE) %>%
-                       mutate(RETDAY = cumprod(1 + na.replace(RET, 0)) - 1) %>%
+                       mutate(RETDAY = (cumprod(1 + na.replace(RET, 0)) - 1)) %>%
                        top_n(1, DATEFRAME) %>%
                        select(-DATEFRAME, -RET)
-  # Retornos mensuales
+  # BD mensual
   BDRETMONTHLY <- BD %>% mutate(YEARMONTH = paste0(year(DATE), "-", format(DATE, "%m"))) %>%
-                         select(DATEFRAME, YEARMONTH, RET) %>% 
+                         select(DATEFRAME, YEARMONTH, RET, MAX_PERD_ACUM) %>% 
                          group_by(YEARMONTH) %>%
                          mutate(RETMONTH = cumprod(1 + na.replace(RET, 0)) - 1) %>%
                          top_n(1, DATEFRAME) %>%
                          select(-DATEFRAME, -RET)
-  # Retornos anuales
+  # BD anual
   BDRETANNUALY <- BD %>% mutate(YEAR = year(DATEFRAME)) %>%
-                         select(DATEFRAME, YEAR, RET) %>% 
+                         select(DATEFRAME, YEAR, RET, MAX_PERD_ACUM) %>% 
                          group_by(YEAR) %>%
                          mutate(RETYEAR = cumprod(1 + na.replace(RET, 0)) - 1) %>%
                          top_n(1, DATEFRAME)  %>%
@@ -900,7 +900,7 @@ Fun_Est_Riesgo_Retorno <- function(BD) {
   #PCVaRA <- 
   
   #Porcentaje de retornos negativos
-  #Frecuencia de retornos menores a -1%, -5%, -10%
+  #Frecuencia de retornos menores a -1%, -5%, -10%, objetivo (libre riesgo)
   #Peor retorno
   
   
@@ -1448,7 +1448,17 @@ ggsave(path = BaseDirPath,
 
 # XX. OBSERVACIONES ###########################################################
 
- 
+
+#1 Comision swell
+#2 Crear funcion que exporte lo de cada estrategia de un top-10 de estrategias
+#3 Correr R/MDD para todas las estrategias y exportar top-10 (anualizar MDD?)
+#4 Rankings
+##4.1 Calcular estadisticas restantes y dejarlas en "Senales"
+##4.3 Generar rankings para cada una de ellas y dejarlos en "Puntajes"
+##4.4 Calcular puntajes y dejarlos en "Puntajes"
+##4.5 Exportar lo de cada estrategia top-10 de "Puntajes"
+#1 Columnas Raul en codigo Swell
+
 # Falta apalancamiento
-# Falta comision swell, SL y TP
+# Falta SL y TP
 # Ajustar instrucciones
