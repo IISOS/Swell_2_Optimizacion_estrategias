@@ -1,5 +1,5 @@
 ###  Estrategia y estadísticas ETF ECH (Réplica Swell vs Propuesto)  ###
-###                            2021-04-25                            ###
+###                            2021-05-02                            ###
 ###                           Version 0.2                            ###  
 ###                Authors: Olga Serna / Ivan Serrano                ###
 
@@ -546,7 +546,7 @@ BDList <- lapply(BDList, FunSIF)
 
 # Determinación de la decisión de inversión con base en los cambios en SIF
 FunDecision <- function(BD) {
-  BD$DECISION <- ifelse((BD$SIF == shift(BD$SIF, n=1, fill = NA)),
+  BD$DECISION_SIF <- ifelse((BD$SIF == shift(BD$SIF, n=1, fill = NA)),
                         ifelse((BD$SIF == "BUY" & shift(BD$SIF, n=1, fill = NA) == "BUY") | (BD$SIF == "SELL" & shift(BD$SIF, n=1, fill = NA) == "SELL"),
                                "HOLD POSITION",
                                "NO POSITION"
@@ -566,47 +566,136 @@ BDList <- lapply(BDList, FunDecision)
 
 # 12. CÁLCULO POSICIÓN Y VALORACIÓN [PROPUESTA] ###############################
 
+# Cargue de parámetros de negociación (BAS y comisión)
+
+BAS <- as.numeric(read_excel(ArchivoInsumos, 
+                             sheet = "Insumos",
+                             range = "B12",
+                             col_names = FALSE
+                             )
+                  )
+
+Comision <- as.numeric(read_excel(ArchivoInsumos, 
+                                  sheet = "Insumos",
+                                  range = "B13",
+                                  col_names = FALSE
+                                  )
+                       )
+
+Zona_PG_Cierre <- read_excel(ArchivoInsumos, 
+                             sheet = "Zona_PG_Cierre",
+                             range = "A1:D5",
+                             col_names = TRUE
+                             )
+Zona_PG_Cierre$MinimoRazon[1] <- -Inf
+Zona_PG_Cierre$MaximoRazon[length(Zona_PG_Cierre$MinimoRazon)] <- Inf
+
 # Asignación de PENTRADA, PCIERRE y signos de posiciones cortas o largas para las señales
 
-Fun_PENTRADA_PCIERRE_SENALSIGNO <- function(BD) {
+Fun_PE_PC_SENALSIGNO_SL_TP <- function(BD) {
   
   # Asignación de precio de entrada (PENTRADA)
-  BD$PENTRADA <- ifelse((BD$DECISION == "OPEN"),
+  BD$PENTRADA <- ifelse((BD$DECISION_SIF == "OPEN"),
                         BD$CLOSE,
-                        ifelse((BD$DECISION == "CLOSE-OPEN"),
+                        ifelse((BD$DECISION_SIF == "CLOSE-OPEN"),
                                BD$CLOSE,
                                NA
+                               )
                         )
-  )
+  
   BD$PENTRADA <- na.locf(BD$PENTRADA, na.rm = FALSE) # Arrastre donde no es OPEN o CLOSE-OPEN
-  ID_CLOSEOPEN <- which(BD$DECISION=="CLOSE-OPEN")
+  ID_CLOSEOPEN <- which(BD$DECISION_SIF=="CLOSE-OPEN")
   BD$PENTRADA[ID_CLOSEOPEN] <- shift(BD$PENTRADA, n=1, fill=NA)[ID_CLOSEOPEN] # Para CLOSE-OPEN se deja el PA de la posición cerrada.
-  BD$PENTRADA[which(BD$DECISION == "NO POSITION")] <- NA # No aplica si no hay posición
+  BD$PENTRADA[which(BD$DECISION_SIF == "NO POSITION")] <- NA # No aplica si no hay posición
   
   # Asignación de precio de cierre (PCIERRE)
-  BD$PCIERRE <- ifelse((BD$DECISION == "CLOSE"),
+  BD$PCIERRE <- ifelse((BD$DECISION_SIF == "CLOSE"),
                        BD$CLOSE,
-                       ifelse((BD$DECISION == "CLOSE-OPEN"),
+                       ifelse((BD$DECISION_SIF == "CLOSE-OPEN"),
                               BD$CLOSE,
                               NA
+                              )
                        )
-  )
   
   # Asignación de signo según señal para identificar posiciones largas y cortas
-  BD$SENALSIGNO <- ifelse((BD$DECISION == "OPEN") | (BD$DECISION == "HOLD POSITION"),
+  BD$SENALSIGNO <- ifelse((BD$DECISION_SIF == "OPEN") | (BD$DECISION_SIF == "HOLD POSITION"),
                           ifelse((BD$SIF == "BUY"),
                                  1,
                                  -1
-                          ),
-                          ifelse((BD$DECISION == "CLOSE") | (BD$DECISION == "CLOSE-OPEN"),
+                                 ),
+                          ifelse((BD$DECISION_SIF == "CLOSE") | (BD$DECISION_SIF == "CLOSE-OPEN"),
                                  ifelse((shift(BD$SIF, n=1, fill=NA) == "BUY"),
                                         1,
                                         -1
-                                 ),
+                                        ),
                                  0 # Cuando DECISION es "NO POSITION" o NA
+                                 )
                           )
-  )
-  BD$SENALSIGNO <- ifelse(is.na(BD$DECISION), 0, BD$SENALSIGNO)
+  
+  BD$SENALSIGNO <- ifelse(is.na(BD$DECISION_SIF), 0, BD$SENALSIGNO)
+  
+  # Cálculo de razones para SL y TP
+  BD$PA_PE <- ifelse(BD$DECISION_SIF == "HOLD POSITION",
+                     (BD$OPEN / BD$PENTRADA - 1) * BD$SENALSIGNO,
+                     NA
+                     )
+  BD$PmaxPmin_PE <- ifelse(BD$DECISION_SIF == "HOLD POSITION",
+                           ifelse(BD$SIF == "BUY",
+                                  (BD$LOW / BD$PENTRADA - 1) * BD$SENALSIGNO,
+                                  (BD$HIGH / BD$PENTRADA - 1) * BD$SENALSIGNO
+                                  ),
+                           NA
+                           )
+
+  # Asignación de zonas de ganancia/pérdida para cierres de posiciones
+  BD$ZONA_PG_PA <- cut(x = BD$PA_PE, 
+                       breaks = c(Zona_PG_Cierre$MinimoRazon, Inf), 
+                       labels = Zona_PG_Cierre$Zona_PG
+                       )
+  BD$ZONA_PG_PmaxPmin <- cut(x = BD$PmaxPmin_PE, 
+                             breaks = c(Zona_PG_Cierre$MinimoRazon, Inf), 
+                             labels = Zona_PG_Cierre$Zona_PG
+                            )
+  BD$CIERRE_PA <- -Zona_PG_Cierre$Cierre[match(BD$ZONA_PG_PA, Zona_PG_Cierre$Zona_PG)]
+  BD$CIERRE_PmaxPmin <- -Zona_PG_Cierre$Cierre[match(BD$ZONA_PG_PmaxPmin, Zona_PG_Cierre$Zona_PG)]
+  BD$CIERREPARCIAL <- ifelse((BD$CIERRE_PA + BD$CIERRE_PmaxPmin) < -1,
+                              -1,
+                             (BD$CIERRE_PA + BD$CIERRE_PmaxPmin)
+                             )
+  BD$CIERRE_ACUM <- ave(BD$CIERREPARCIAL,
+                        cumsum(is.na(BD$CIERREPARCIAL) != c(T,is.na(BD$CIERREPARCIAL)[1:N-1])), 
+                        FUN = cumsum
+                        )
+  
+  BD$CIERRE_ACUM <- ifelse(BD$CIERRE_ACUM < -1,
+                           -1,
+                           BD$CIERRE_ACUM
+                           )
+  
+  BD$POS_ABIERTA <- ifelse(BD$DECISION_SIF == "OPEN",
+                           1, # Si decisión es "OPEN"
+                           ifelse(BD$DECISION_SIF == "CLOSE-OPEN", # Si decisiÓn NO es "OPEN"
+                                  1, # Si decisiÓn es "CLOSE-OPEN"
+                                  ifelse(BD$DECISION_SIF == "CLOSE", # Si decisiÓn NO es "OPEN" ni "CLOSE-OPEN"
+                                         0, # Si decisiÓn es "CLOSE"
+                                         ifelse(BD$DECISION_SIF == "HOLD POSITION", # Si decisiÓn es NO "OPEN" ni "CLOSE-OPEN" ni "CLOSE"
+                                                1 + BD$CIERRE_ACUM, # Si decisiÓn es "HOLD POSITION"
+                                                0 # Si decisiÓn es "NO POSITION"
+                                                )
+                                         )
+                                  ) 
+                           )
+  
+  BD$DECISION_FINAL <- ifelse(BD$DECISION_SIF == "HOLD POSITION",
+                              ifelse(BD$POS_ABIERTA == 0,
+                                     ifelse(shift(BD$POS_ABIERTA, n=1, fill=NA) > 0,
+                                            "CLOSE",
+                                            "NO POSITION"
+                                            ),
+                                     "HOLD POSITION"
+                                     ),
+                              BD$DECISION_SIF
+                              )
   
   #Resultados
   return(BD)
@@ -627,8 +716,7 @@ Fun_POS_VAL_PORT <- function(BD) {
   # y valor de compras y ventas (VOL_COMPRAS, VOL_VENTAS, VAL_COMPRAS y VAL_VENTAS).
   # También se definen las variables de entrada conocidas, correspondientes a la 
   # primera FH de la serie.
-  BD$VOL_POSINICIAL <- NA
-  BD$VAL_POSINICIAL <- NA
+  BD$VOL_POSAPERTURA <- c(0, rep(NA, (N-1)))
   BD$VOL_COMPRAS <- c(0, rep(NA, (N-1)))
   BD$VAL_COMPRAS <- c(0, rep(NA, (N-1)))
   BD$VOL_VENTAS <- c(0, rep(NA, (N-1)))
@@ -640,10 +728,10 @@ Fun_POS_VAL_PORT <- function(BD) {
   
   for (t in 2:N) {
     
-    BD$VOL_POSINICIAL[t] <- BD$VOL_POSFINAL[t-1]
-    BD$VAL_POSINICIAL[t] <- BD$VAL_POSFINAL[t-1]
+    #BD$VOL_POSINICIAL[t] <- BD$VOL_POSFINAL[t-1]
+    #BD$VAL_POSINICIAL[t] <- BD$VAL_POSFINAL[t-1]
     
-    if (BD$DECISION[t] == "OPEN") { # Si decisiÓn es "OPEN"
+    if (BD$DECISION_SIF[t] == "OPEN") { # Si decisiÓn es "OPEN"
       
       BD$VAL_VENTAS[t] <- 0
       BD$VOL_VENTAS[t] <- BD$VAL_VENTAS[t] / BD$PENTRADA[t]
@@ -652,25 +740,25 @@ Fun_POS_VAL_PORT <- function(BD) {
       
     } else { # Si decisiÓn NO es "OPEN"
       
-      if (BD$DECISION[t] == "CLOSE-OPEN") { # Si decisiÓn es "CLOSE-OPEN"
+      if (BD$DECISION_SIF[t] == "CLOSE-OPEN") { # Si decisiÓn es "CLOSE-OPEN"
         
-        BD$VOL_VENTAS[t] <- BD$VOL_POSINICIAL[t]
+        BD$VOL_VENTAS[t] <- BD$VOL_POSFINAL[t-1]
         BD$VAL_VENTAS[t] <- BD$VOL_VENTAS[t] * BD$PCIERRE[t]
         BD$VAL_COMPRAS[t] <- BD$VAL_VENTAS[t]
         BD$VOL_COMPRAS[t] <- BD$VAL_COMPRAS[t] / BD$CLOSE[t]
         
       } else { # Si decisiÓn NO es "OPEN" ni "CLOSE-OPEN"
         
-        if (BD$DECISION[t] == "CLOSE") { # Si decisiÓn es "CLOSE"
+        if (BD$DECISION_SIF[t] == "CLOSE") { # Si decisiÓn es "CLOSE"
           
-          BD$VOL_VENTAS[t] <- BD$VOL_POSINICIAL[t]
+          BD$VOL_VENTAS[t] <- BD$VOL_POSFINAL[t-1]
           BD$VAL_VENTAS[t] <- BD$VOL_VENTAS[t] * BD$PCIERRE[t]
           BD$VAL_COMPRAS[t] <- 0
           BD$VOL_COMPRAS[t] <- 0
           
         } else { # Si decisiÓn es NO "OPEN" ni "CLOSE-OPEN" ni "CLOSE"
           
-          if (BD$DECISION[t] == "HOLD POSITION") { # Si decisiÓn es "HOLD POSITION"
+          if (BD$DECISION_SIF[t] == "HOLD POSITION") { # Si decisiÓn es "HOLD POSITION"
             
             BD$VOL_VENTAS[t] <- 0
             BD$VAL_VENTAS[t] <- 0
@@ -693,7 +781,7 @@ Fun_POS_VAL_PORT <- function(BD) {
     }
     
     # Siempre se calcula la posición final y la valoración del efectivo y del portafolio:
-    BD$VOL_POSFINAL[t] <- BD$VOL_POSINICIAL[t] +
+    BD$VOL_POSFINAL[t] <- BD$VOL_POSFINAL[t-1] +
       BD$VOL_COMPRAS[t] -
       BD$VOL_VENTAS[t]
     BD$VAL_POSFINAL[t] <- BD$VOL_POSFINAL[t] * BD$CLOSE[t]
@@ -1265,22 +1353,22 @@ saveWorkbook(wb = ArchivoResultadosSel,
 Fun_Est_U_MPA <- function(BD) {
   
   # Asignación de precio de apertura (PA)
-  BD$PA <- ifelse((BD$DECISION == "OPEN"),
+  BD$PA <- ifelse((BD$DECISION_SIF == "OPEN"),
                    BD$CLOSE,
-                   ifelse((BD$DECISION == "CLOSE-OPEN"),
+                   ifelse((BD$DECISION_SIF == "CLOSE-OPEN"),
                            BD$CLOSE,
                            NA
                          )
                  )
   BD$PA <- na.locf(BD$PA, na.rm = FALSE) # Arrastre donde no es OPEN o CLOSE-OPEN
-  ID_CLOSEOPEN <- which(BD$DECISION=="CLOSE-OPEN")
+  ID_CLOSEOPEN <- which(BD$DECISION_SIF=="CLOSE-OPEN")
   BD$PA[ID_CLOSEOPEN] <- shift(BD$PA, n=1, fill=NA)[ID_CLOSEOPEN] # Para CLOSE-OPEN se deja el PA de la posición cerrada.
-  BD$PA[which(BD$DECISION == "NO POSITION")] <- NA # No aplica si no hay posición
+  BD$PA[which(BD$DECISION_SIF == "NO POSITION")] <- NA # No aplica si no hay posición
   
   # Asignación de precio de cierre (PC)
-  BD$PC <- ifelse((BD$DECISION == "CLOSE"),
+  BD$PC <- ifelse((BD$DECISION_SIF == "CLOSE"),
                    BD$CLOSE,
-                   ifelse((BD$DECISION == "CLOSE-OPEN"),
+                   ifelse((BD$DECISION_SIF == "CLOSE-OPEN"),
                            BD$CLOSE,
                            NA
                          )
@@ -1290,17 +1378,17 @@ Fun_Est_U_MPA <- function(BD) {
   BD$UTILIDAD <- BD$PC - BD$PA
   
   # Asignación de signo según señal para identificar posiciones largas y cortas
-  BD$SENALSIGNO <- ifelse((BD$DECISION == "OPEN") | (BD$DECISION == "HOLD POSITION"),
+  BD$SENALSIGNO <- ifelse((BD$DECISION_SIF == "OPEN") | (BD$DECISION_SIF == "HOLD POSITION"),
                           ifelse((BD$SIF == "BUY"),
                                  1,
                                  -1
                           ),
-                          ifelse((BD$DECISION == "CLOSE") | (BD$DECISION == "CLOSE-OPEN"),
+                          ifelse((BD$DECISION_SIF == "CLOSE") | (BD$DECISION_SIF == "CLOSE-OPEN"),
                                  ifelse((shift(BD$SIF, n=1, fill=NA) == "BUY"),
                                         1,
                                         -1
                                  ),
-                                 NA # Cuando BD$DECISION == "NO POSITION"
+                                 NA # Cuando BD$DECISION_SIF == "NO POSITION"
                           )
   ) 
   
