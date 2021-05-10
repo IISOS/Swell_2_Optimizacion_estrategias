@@ -1,5 +1,5 @@
 ###  Estrategia y estadísticas ETF ECH (Réplica Swell vs Propuesto)  ###
-###                            2021-05-02                            ###
+###                            2021-05-09                            ###
 ###                           Version 0.2                            ###  
 ###                Authors: Olga Serna / Ivan Serrano                ###
 
@@ -542,10 +542,11 @@ FunSIF <- function(BD) {
 BDList <- lapply(BDList, FunSIF)
 
 
-# 11. DECISIÓN DE INVERSIÓN ####
+# 11. DECISIÓN DE INVERSIÓN ÚNICAMENTE CON BASE EN SIF ####
 
 # Determinación de la decisión de inversión con base en los cambios en SIF
-FunDecision <- function(BD) {
+
+FunDecision_SIF <- function(BD) {
   BD$DECISION_SIF <- ifelse((BD$SIF == shift(BD$SIF, n=1, fill = NA)),
                         ifelse((BD$SIF == "BUY" & shift(BD$SIF, n=1, fill = NA) == "BUY") | (BD$SIF == "SELL" & shift(BD$SIF, n=1, fill = NA) == "SELL"),
                                "HOLD POSITION",
@@ -561,10 +562,11 @@ FunDecision <- function(BD) {
   )
   return(BD)
 }
-BDList <- lapply(BDList, FunDecision)
+
+BDList <- lapply(BDList, FunDecision_SIF)
 
 
-# 12. CÁLCULO POSICIÓN Y VALORACIÓN [PROPUESTA] ###############################
+# 12. DECISIÓN DE INVERSIÓN FINAL CONSIDERANDO SL Y TP ########################
 
 # Cargue de parámetros de negociación (BAS y comisión)
 
@@ -590,9 +592,9 @@ Zona_PG_Cierre <- read_excel(ArchivoInsumos,
 Zona_PG_Cierre$MinimoRazon[1] <- -Inf
 Zona_PG_Cierre$MaximoRazon[length(Zona_PG_Cierre$MinimoRazon)] <- Inf
 
-# Asignación de PENTRADA, PCIERRE y signos de posiciones cortas o largas para las señales
+# Asignación de PENTRADA, PCIERRE y signos de cortos/largos únicamente con base en SIF
 
-Fun_PE_PC_SENALSIGNO_SL_TP <- function(BD) {
+Fun_PE_PC_SENALSIGNO <- function(BD) {
   
   # Asignación de precio de entrada (PENTRADA)
   BD$PENTRADA <- ifelse((BD$DECISION_SIF == "OPEN"),
@@ -633,44 +635,56 @@ Fun_PE_PC_SENALSIGNO_SL_TP <- function(BD) {
                           )
   
   BD$SENALSIGNO <- ifelse(is.na(BD$DECISION_SIF), 0, BD$SENALSIGNO)
+
+  #Resultados
+  return(BD)
+  
+}
+
+BDPSList <- lapply(BDList, Fun_PE_PC_SENALSIGNO) # Construye lista de BDs
+
+# Determinación de decisión de inversión final incorporando TP y SL
+
+FunDecision_Final <- function(BD) {
   
   # Cálculo de razones para SL y TP
   BD$PA_PE <- ifelse(BD$DECISION_SIF == "HOLD POSITION",
                      (BD$OPEN / BD$PENTRADA - 1) * BD$SENALSIGNO,
                      NA
-                     )
+  )
   BD$PmaxPmin_PE <- ifelse(BD$DECISION_SIF == "HOLD POSITION",
                            ifelse(BD$SIF == "BUY",
                                   (BD$LOW / BD$PENTRADA - 1) * BD$SENALSIGNO,
                                   (BD$HIGH / BD$PENTRADA - 1) * BD$SENALSIGNO
-                                  ),
+                           ),
                            NA
-                           )
-
+  )
+  
   # Asignación de zonas de ganancia/pérdida para cierres de posiciones
   BD$ZONA_PG_PA <- cut(x = BD$PA_PE, 
                        breaks = c(Zona_PG_Cierre$MinimoRazon, Inf), 
                        labels = Zona_PG_Cierre$Zona_PG
-                       )
+  )
   BD$ZONA_PG_PmaxPmin <- cut(x = BD$PmaxPmin_PE, 
                              breaks = c(Zona_PG_Cierre$MinimoRazon, Inf), 
                              labels = Zona_PG_Cierre$Zona_PG
-                            )
+  )
   BD$CIERRE_PA <- -Zona_PG_Cierre$Cierre[match(BD$ZONA_PG_PA, Zona_PG_Cierre$Zona_PG)]
   BD$CIERRE_PmaxPmin <- -Zona_PG_Cierre$Cierre[match(BD$ZONA_PG_PmaxPmin, Zona_PG_Cierre$Zona_PG)]
   BD$CIERREPARCIAL <- ifelse((BD$CIERRE_PA + BD$CIERRE_PmaxPmin) < -1,
-                              -1,
+                             -1,
                              (BD$CIERRE_PA + BD$CIERRE_PmaxPmin)
-                             )
-  BD$CIERRE_ACUM <- ave(BD$CIERREPARCIAL,
-                        cumsum(is.na(BD$CIERREPARCIAL) != c(T,is.na(BD$CIERREPARCIAL)[1:N-1])), 
+  )
+  # Acumulado irrestricto de cierres parciales (SON ajuste por valores menores a -1)
+  BD$CIERRE_ACUM <- ave(BD$CIERREPARCIAL, 
+                        cumsum(is.na(BD$CIERREPARCIAL) != c(T,is.na(BD$CIERREPARCIAL)[1:N-1])), # Vector de grupos (se construye haciendo el cumsum de un vextor con VERDADERO en puntos de inicio)
                         FUN = cumsum
-                        )
-  
+  )
+  # Acumulado acotado de cierres parciales (CON ajuste por valores menores a -1)
   BD$CIERRE_ACUM <- ifelse(BD$CIERRE_ACUM < -1,
                            -1,
                            BD$CIERRE_ACUM
-                           )
+  )
   
   BD$POS_ABIERTA <- ifelse(BD$DECISION_SIF == "OPEN",
                            1, # Si decisión es "OPEN"
@@ -681,28 +695,94 @@ Fun_PE_PC_SENALSIGNO_SL_TP <- function(BD) {
                                          ifelse(BD$DECISION_SIF == "HOLD POSITION", # Si decisiÓn es NO "OPEN" ni "CLOSE-OPEN" ni "CLOSE"
                                                 1 + BD$CIERRE_ACUM, # Si decisiÓn es "HOLD POSITION"
                                                 0 # Si decisiÓn es "NO POSITION"
-                                                )
                                          )
-                                  ) 
-                           )
+                                  )
+                           ) 
+  )
   
   BD$DECISION_FINAL <- ifelse(BD$DECISION_SIF == "HOLD POSITION",
                               ifelse(BD$POS_ABIERTA == 0,
                                      ifelse(shift(BD$POS_ABIERTA, n=1, fill=NA) > 0,
                                             "CLOSE",
                                             "NO POSITION"
-                                            ),
-                                     "HOLD POSITION"
                                      ),
-                              BD$DECISION_SIF
+                                     BD$DECISION_SIF # Es decir, "HOLD POSITION"
+                              ),
+                              ifelse(BD$DECISION_SIF == "CLOSE",
+                                     ifelse(shift(BD$POS_ABIERTA == 0, n=1, fill=NA),
+                                            "NO POSITION",
+                                            BD$DECISION_SIF # Es decir, "CLOSE".
+                                     ),
+                                     ifelse(BD$DECISION_SIF == "CLOSE-OPEN",
+                                            ifelse(shift(BD$POS_ABIERTA == 0, n=1, fill=NA),
+                                                   "OPEN",
+                                                   BD$DECISION_SIF # Es decir, "CLOSE-OPEN".
+                                            ),
+                                            BD$DECISION_SIF # Es decir, "OPEN" o "NO POSITION"
+                                     )
                               )
+  )
   
   #Resultados
   return(BD)
   
 }
 
-BDPSList <- lapply(BDList, Fun_PENTRADA_PCIERRE_SENALSIGNO) # Construye lista de BDs
+BDPSList <- lapply(BDList, FunDecision_Final) # Complementa lista de BDs
+
+# Asignación de PENTRADA, PCIERRE y signos de cortos/largos con base en decisión de inversión final
+
+Fun_PE_PC_SENALSIGNO_SL_TP <- function(BD) {
+  
+  # Asignación de precio de entrada (PENTRADA)
+  BD$PENTRADA <- ifelse((BD$DECISION_FINAL == "OPEN"),
+                        BD$CLOSE,
+                        ifelse((BD$DECISION_FINAL == "CLOSE-OPEN"),
+                               BD$CLOSE,
+                               NA
+                        )
+  )
+  
+  BD$PENTRADA <- na.locf(BD$PENTRADA, na.rm = FALSE) # Arrastre donde no es OPEN o CLOSE-OPEN
+  ID_CLOSEOPEN <- which(BD$DECISION_FINAL=="CLOSE-OPEN")
+  BD$PENTRADA[ID_CLOSEOPEN] <- shift(BD$PENTRADA, n=1, fill=NA)[ID_CLOSEOPEN] # Para CLOSE-OPEN se deja el PA de la posición cerrada.
+  BD$PENTRADA[which(BD$DECISION_FINAL == "NO POSITION")] <- NA # No aplica si no hay posición
+  
+  # Asignación de precio de cierre (PCIERRE)
+  BD$PCIERRE <- ifelse((BD$DECISION_FINAL == "CLOSE"),
+                       BD$CLOSE,
+                       ifelse((BD$DECISION_FINAL == "CLOSE-OPEN"),
+                              BD$CLOSE,
+                              NA
+                       )
+  )
+  
+  # Asignación de signo según señal para identificar posiciones largas y cortas
+  BD$SENALSIGNO <- ifelse((BD$DECISION_FINAL == "OPEN") | (BD$DECISION_FINAL == "HOLD POSITION"),
+                          ifelse((BD$SIF == "BUY"),
+                                 1,
+                                 -1
+                          ),
+                          ifelse((BD$DECISION_FINAL == "CLOSE") | (BD$DECISION_FINAL == "CLOSE-OPEN"),
+                                 ifelse((shift(BD$SIF, n=1, fill=NA) == "BUY"),
+                                        1,
+                                        -1
+                                 ),
+                                 0 # Cuando DECISION es "NO POSITION" o NA
+                          )
+  )
+  
+  BD$SENALSIGNO <- ifelse(is.na(BD$DECISION_FINAL), 0, BD$SENALSIGNO)
+
+  #Resultados
+  return(BD)
+  
+}
+
+BDPSList <- lapply(BDList, Fun_PE_PC_SENALSIGNO_SL_TP) # Complementa lista de BDs
+
+
+# 13. CÁLCULO POSICIÓN Y VALORACIÓN [PROPUESTA] ###############################
 
 # Cálculo de posición y valoración del portafolio suponiendo solo posiciones largas
 
@@ -731,7 +811,7 @@ Fun_POS_VAL_PORT <- function(BD) {
     #BD$VOL_POSINICIAL[t] <- BD$VOL_POSFINAL[t-1]
     #BD$VAL_POSINICIAL[t] <- BD$VAL_POSFINAL[t-1]
     
-    if (BD$DECISION_SIF[t] == "OPEN") { # Si decisiÓn es "OPEN"
+    if (BD$DECISION_FINAL[t] == "OPEN") { # Si decisiÓn es "OPEN"
       
       BD$VAL_VENTAS[t] <- 0
       BD$VOL_VENTAS[t] <- BD$VAL_VENTAS[t] / BD$PENTRADA[t]
@@ -740,7 +820,7 @@ Fun_POS_VAL_PORT <- function(BD) {
       
     } else { # Si decisiÓn NO es "OPEN"
       
-      if (BD$DECISION_SIF[t] == "CLOSE-OPEN") { # Si decisiÓn es "CLOSE-OPEN"
+      if (BD$DECISION_FINAL[t] == "CLOSE-OPEN") { # Si decisiÓn es "CLOSE-OPEN"
         
         BD$VOL_VENTAS[t] <- BD$VOL_POSFINAL[t-1]
         BD$VAL_VENTAS[t] <- BD$VOL_VENTAS[t] * BD$PCIERRE[t]
@@ -749,7 +829,7 @@ Fun_POS_VAL_PORT <- function(BD) {
         
       } else { # Si decisiÓn NO es "OPEN" ni "CLOSE-OPEN"
         
-        if (BD$DECISION_SIF[t] == "CLOSE") { # Si decisiÓn es "CLOSE"
+        if (BD$DECISION_FINAL[t] == "CLOSE") { # Si decisiÓn es "CLOSE"
           
           BD$VOL_VENTAS[t] <- BD$VOL_POSFINAL[t-1]
           BD$VAL_VENTAS[t] <- BD$VOL_VENTAS[t] * BD$PCIERRE[t]
@@ -758,7 +838,7 @@ Fun_POS_VAL_PORT <- function(BD) {
           
         } else { # Si decisiÓn es NO "OPEN" ni "CLOSE-OPEN" ni "CLOSE"
           
-          if (BD$DECISION_SIF[t] == "HOLD POSITION") { # Si decisiÓn es "HOLD POSITION"
+          if (BD$DECISION_FINAL[t] == "HOLD POSITION") { # Si decisiÓn es "HOLD POSITION"
             
             BD$VOL_VENTAS[t] <- 0
             BD$VAL_VENTAS[t] <- 0
@@ -800,7 +880,7 @@ BDPSList <- lapply(BDPSList, Fun_POS_VAL_PORT)
 EndT <- Sys.time()
 TElapsed <- EndT - StartT
 
-# 13. CÁLCULO ESTADÍSTICAS RETORNO Y RIESGO [PROPUESTA] #######################
+# 14. CÁLCULO ESTADÍSTICAS RETORNO Y RIESGO [PROPUESTA] #######################
 
 # Variables y parámetros para los cálculos - Número de franjas horarias por día
 NFHD <- as.numeric(read_excel(ArchivoInsumos, 
@@ -1047,7 +1127,7 @@ BDPSList <- lapply(BDPSList, Fun_Est_Riesgo_Retorno) # Construye lista de listas
 names(BDPSList) <- rownames(Senales)
 
 
-# 14. RESUMEN ESTADÍSTICAS ESTRATEGIAS [PROPUESTA] ############################
+# 15. RESUMEN ESTADÍSTICAS ESTRATEGIAS [PROPUESTA] ############################
 
 # Función para obtención de estadísticas totales de retorno y riesgo de cada estrategia
 Fun_R_R_Tot <- function(List) {
@@ -1257,7 +1337,7 @@ ggsave(path = BaseDirPath,
       )
 
 
-# 15. ESTRATEGIA ÓPTIMA [PROPUESTA] ###########################################
+# 16. ESTRATEGIA ÓPTIMA [PROPUESTA] ###########################################
 
 # Identificación estrategia óptima
 NEstrategiaOpt <- which.max(Senales$RAA_MPA)
@@ -1300,7 +1380,7 @@ saveWorkbook(wb = ArchivoResultadosOpt,
             )
 
 
-# 16. ESTRATEGIAS ADICIONALES [PROPUESTA] #####################################
+# 17. ESTRATEGIAS ADICIONALES [PROPUESTA] #####################################
 
 # Para visualizar la información y estadísticas de una estrategia en particular,
 # a continuación asigne a la variable "Estrategia" la cambinación deseada de 
@@ -1346,203 +1426,6 @@ saveWorkbook(wb = ArchivoResultadosSel,
              file = NombreArchivoResultadosSel, 
              overwrite = TRUE
             )
-
-
-# 17. CÁLCULO ESTADÍSTICAS RETORNO Y RIESGO [SWELL] ###########################
-
-Fun_Est_U_MPA <- function(BD) {
-  
-  # Asignación de precio de apertura (PA)
-  BD$PA <- ifelse((BD$DECISION_SIF == "OPEN"),
-                   BD$CLOSE,
-                   ifelse((BD$DECISION_SIF == "CLOSE-OPEN"),
-                           BD$CLOSE,
-                           NA
-                         )
-                 )
-  BD$PA <- na.locf(BD$PA, na.rm = FALSE) # Arrastre donde no es OPEN o CLOSE-OPEN
-  ID_CLOSEOPEN <- which(BD$DECISION_SIF=="CLOSE-OPEN")
-  BD$PA[ID_CLOSEOPEN] <- shift(BD$PA, n=1, fill=NA)[ID_CLOSEOPEN] # Para CLOSE-OPEN se deja el PA de la posición cerrada.
-  BD$PA[which(BD$DECISION_SIF == "NO POSITION")] <- NA # No aplica si no hay posición
-  
-  # Asignación de precio de cierre (PC)
-  BD$PC <- ifelse((BD$DECISION_SIF == "CLOSE"),
-                   BD$CLOSE,
-                   ifelse((BD$DECISION_SIF == "CLOSE-OPEN"),
-                           BD$CLOSE,
-                           NA
-                         )
-                 )
-  
-  # Cálculo de utilidad de cada negociación suponiendo solo posiciones largas
-  BD$UTILIDAD <- BD$PC - BD$PA
-  
-  # Asignación de signo según señal para identificar posiciones largas y cortas
-  BD$SENALSIGNO <- ifelse((BD$DECISION_SIF == "OPEN") | (BD$DECISION_SIF == "HOLD POSITION"),
-                          ifelse((BD$SIF == "BUY"),
-                                 1,
-                                 -1
-                          ),
-                          ifelse((BD$DECISION_SIF == "CLOSE") | (BD$DECISION_SIF == "CLOSE-OPEN"),
-                                 ifelse((shift(BD$SIF, n=1, fill=NA) == "BUY"),
-                                        1,
-                                        -1
-                                 ),
-                                 NA # Cuando BD$DECISION_SIF == "NO POSITION"
-                          )
-  ) 
-  
-  # Cálculo de utilidad de cada negociación según posiciones (largas o cortas)
-  BD$UTILIDAD <- BD$UTILIDAD * BD$SENALSIGNO
-  
-  # Cálculo de utilidad acumulada
-  BD$UTILIDADACUM <- BD$UTILIDAD
-  BD$UTILIDADACUM[is.na(BD$UTILIDAD)] <- 0
-  BD$UTILIDADACUM <- cumsum(BD$UTILIDADACUM)
-  
-  # Cálculo pérdida acumulada
-  BD$PERDACUM <- BD$UTILIDADACUM - cummax(BD$UTILIDADACUM)
-  BD$MAXPERDACUM <- cummin(BD$PERDACUM)
-  
-  # Estadisticas finales utilidad y máxima pérdida acumulada
-  N <- length(BD$DATEFRAME)
-  UTILIDADACUM <- BD$UTILIDADACUM[N]
-  MAXPERDACUM <- BD$MAXPERDACUM[N]
-  UA_MPA <- UTILIDADACUM / -MAXPERDACUM
-  
-  # Gráfico utilidad acumulada
-  G_UTILIDADACUM <- ggplot(BD, aes(x = DATE, y = UTILIDADACUM)) +
-    geom_line(size = 1) +
-    ggtitle("Utilidad acumulada estrategia") + 
-    xlab("Fecha") + ylab("Utilidad acumulada") +
-    expand_limits(x =BD$DATE[1]) +
-    expand_limits(y = 0) +
-    PlantillaG
-  
-  #Resultados
-  BD_Est_U_MPA <- list(BD, UTILIDADACUM, MAXPERDACUM, UA_MPA, G_UTILIDADACUM)
-  names(BD_Est_U_MPA) <- c("BDPS", "UtilidadAcum", "MaxPerdAcum", "UA_MPA", "Graf_UtilidadAcum")
-  
-  return(BD_Est_U_MPA)
-  
-}
-
-BDListSwell <- lapply(BDList, Fun_Est_U_MPA)
-names(BDListSwell) <- rownames(SenalesSwell)
-
-# 18. RESUMEN ESTADÍSTICAS ESTRATEGIAS [SWELL] ################################
-
-# Función para obtención de estadísticas retorno y riesgo de cada estrategia
-Fun_UA_MPA <- function(List) {
-  UA_MPA <- data.frame(UtilidadAcum = List$UtilidadAcum, 
-                       MaxPerdAcum = List$MaxPerdAcum, 
-                       UA_MPA = List$UA_MPA
-  )
-  return(UA_MPA)
-}
-
-# Obtención de estadísticas retorno y riesgo de cada estrategia
-SenalesSwell <- cbind(SenalesSwell, t(sapply(BDListSwell, Fun_UA_MPA)))
-SenalesSwell$UtilidadAcum <- unlist(SenalesSwell$UtilidadAcum)
-SenalesSwell$MaxPerdAcum <- unlist(SenalesSwell$MaxPerdAcum)
-SenalesSwell$UA_MPA <- unlist(SenalesSwell$UA_MPA)
-rownames(SenalesSwell) <- paste0("I", SenalesSwell$I, "R", SenalesSwell$R)
-
-# Gráfico Utilidad/MDD por estrategia
-ggplot(SenalesSwell, aes(x = rownames(SenalesSwell), y = UA_MPA)) +
-  geom_col() +
-  ggtitle("Utilidad/MDD por estrategia") + 
-  xlab("Estrategia") + ylab("Utilidad/MDD") +
-  expand_limits(x = 0) +
-  expand_limits(y = 0) +
-  PlantillaG
-
-# Gráfico Utilidad/MDD para estrategias por encima del promedio
-Est_may_media <-  SenalesSwell %>% filter(UA_MPA > mean(UA_MPA)) 
-ggplot(Est_may_media, aes(x = reorder(rownames(Est_may_media), UA_MPA), y = UA_MPA)) +
-  geom_col() +
-  ggtitle("Utilidad/MDD por estrategia") + 
-  xlab("Estrategia") + ylab("Utilidad/MDD") +
-  expand_limits(x = 0) +
-  expand_limits(y = 0) +
-  PlantillaG
-
-U_MDD_Objetivo <- as.numeric(read_excel(ArchivoInsumos, 
-                                        sheet = "Insumos",
-                                        range = "B23",
-                                        col_names = FALSE
-)
-)
-Est_may_Sup <-  SenalesSwell %>% filter(UA_MPA > U_MDD_Objetivo)
-
-ggplot(Est_may_Sup, aes(x = reorder(rownames(Est_may_Sup), UA_MPA), y = UA_MPA)) +
-  geom_col() +
-  ggtitle("Utilidad/MDD por estrategia") + 
-  xlab("Estrategia") + ylab("Utilidad/MDD") +
-  expand_limits(x = 0) +
-  expand_limits(y = 0) +
-  PlantillaG
-
-
-# 19. ESTRATEGIA ÓPTIMA [SWELL] ###############################################
-
-NEstrategiaOpt <- which.max(SenalesSwell$UA_MPA)
-EstrategiaOpt <- rownames(SenalesSwell)[NEstrategiaOpt]
-paste0("La estrategia óptima es ", EstrategiaOpt)
-View(BDListSwell[[EstrategiaOpt]]$BDPS)
-BDListSwell[[EstrategiaOpt]]$Graf_UtilidadAcum +
-  ggtitle(paste0("Utilidad acumulada estrategia ", EstrategiaOpt))
-Nombre_BD_EstrategiaOpt <- SenalesSwell$NombreBD[NEstrategiaOpt]
-write.xlsx(x = BDListSwell[[EstrategiaOpt]]$BD, 
-           file = paste0(Nombre_BD_EstrategiaOpt, "_Swell.xlsx"),
-           colNames = TRUE
-          )
-
-
-# 20. ESTRATEGIAS ADICIONALES [SWELL] #########################################
-
-# Para visualizar la información y estadísticas de una estrategia en particular,
-# a continuación asigne a la variable "Estrategia" la cambinación deseada de 
-# fractales intradiario y de referencia con el formato "I#R#". Por ejemplo, para
-# el fractal intradiario 2 y el fractal intradiario de referencia 8 use "I2R8":
-
-Estrategia <- "I5R9"
-NEstrategia <- which(rownames(SenalesSwell) == Estrategia)
-paste0("La estrategia seleccionada es ", Estrategia)
-View(BDListSwell[[Estrategia]]$BD)
-BDListSwell[[Estrategia]]$Graf_UtilidadAcum +
-  ggtitle(paste0("Utilidad acumulada estrategia ", Estrategia))
-Nombre_BD_Estrategia <- SenalesSwell$NombreBD[NEstrategia]
-write.xlsx(x = BDListSwell[[Estrategia]]$BD, 
-           file = paste0(Nombre_BD_Estrategia, "_Swell.xlsx"),
-           colNames = TRUE
-          )
-
-
-# 21. COMPARACIÓN SWELL vs PROPUESTA ##########################################
-
-# Estrategia óptima - Perspectiva Swell vs. Perspectiva propuesta
-RetEstOptSwell <- (BDListSwell[[EstrategiaOpt]]$BD$UTILIDAD / shift(BDListSwell[[EstrategiaOpt]]$BD$PA, n=1, fill =NA))
-RetEstOptSwell[is.na(RetEstOptSwell)] <- 0
-ValPortB100Swell <- cumprod(1 + RetEstOptSwell) * 100
-
-U_Swell_v_Propuesta <- data.frame(DATE = BDListSwell[[EstrategiaOpt]]$BDPS$DATE,
-                                  ValPortB100Swell = ValPortB100Swell,
-                                  ValPortB100Propuesta = BDPSList[[EstrategiaOpt]]$BD$VAL_PORT_ACUM_B100 )
-
-G_U_Swell_v_Propuesta <- ggplot(U_Swell_v_Propuesta, aes(x = DATE)) +
-  geom_line(aes(y = ValPortB100Swell, color = "Swell"), size = 1) +
-  geom_line(aes(y = ValPortB100Propuesta, color = "Propuesta"), size = 1) +
-  scale_colour_manual("", values = c("Swell"="red", "Propuesta"="darkblue"), breaks=c("Swell","Propuesta")) +
-  ggtitle("Retorno acumulado estrategia (Base 100)") + 
-  xlab("Fecha") + ylab("Retorno acumulado (Base 100)") +
-  PlantillaG
-print(G_U_Swell_v_Propuesta)
-ggsave(path = BaseDirPath, 
-       plot = G_U_Swell_v_Propuesta,
-       filename = "Retorno acumulado estrategia Swell vs Propuesta (Base 100).png",
-       scale = 2
-      ) 
 
 
 # XX. OBSERVACIONES ###########################################################
