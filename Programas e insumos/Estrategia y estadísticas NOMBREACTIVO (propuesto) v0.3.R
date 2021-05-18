@@ -1,6 +1,6 @@
 ###  Estrategia y estadísticas ETF ECH (Réplica Swell vs Propuesto)  ###
-###                            2021-05-09                            ###
-###                           Version 0.2                            ###  
+###                            2021-05-16                            ###
+###                           Version 0.3                            ###  
 ###                Authors: Olga Serna / Ivan Serrano                ###
 
 
@@ -568,21 +568,7 @@ BDList <- lapply(BDList, FunDecision_SIF)
 
 # 12. DECISIÓN DE INVERSIÓN FINAL CONSIDERANDO SL Y TP ########################
 
-# Cargue de parámetros de negociación (BAS y comisión)
-
-BAS <- as.numeric(read_excel(ArchivoInsumos, 
-                             sheet = "Insumos",
-                             range = "B12",
-                             col_names = FALSE
-                             )
-                  )
-
-Comision <- as.numeric(read_excel(ArchivoInsumos, 
-                                  sheet = "Insumos",
-                                  range = "B13",
-                                  col_names = FALSE
-                                  )
-                       )
+# Cargue de zonas de pérdidas y ganancias (P&G) para el cierre de posiciones
 
 Zona_PG_Cierre <- read_excel(ArchivoInsumos, 
                              sheet = "Zona_PG_Cierre",
@@ -641,7 +627,7 @@ Fun_PE_PC_SENALSIGNO <- function(BD) {
   
 }
 
-BDPSList <- lapply(BDList, Fun_PE_PC_SENALSIGNO) # Construye lista de BDs
+BDList <- lapply(BDList, Fun_PE_PC_SENALSIGNO) # Construye lista de BDs
 
 # Determinación de decisión de inversión final incorporando TP y SL
 
@@ -651,40 +637,125 @@ FunDecision_Final <- function(BD) {
   BD$PA_PE <- ifelse(BD$DECISION_SIF == "HOLD POSITION",
                      (BD$OPEN / BD$PENTRADA - 1) * BD$SENALSIGNO,
                      NA
-  )
+                     )
   BD$PmaxPmin_PE <- ifelse(BD$DECISION_SIF == "HOLD POSITION",
                            ifelse(BD$SIF == "BUY",
                                   (BD$LOW / BD$PENTRADA - 1) * BD$SENALSIGNO,
                                   (BD$HIGH / BD$PENTRADA - 1) * BD$SENALSIGNO
-                           ),
+                                  ),
                            NA
-  )
+                           )
   
-  # Asignación de zonas de ganancia/pérdida para cierres de posiciones
-  BD$ZONA_PG_PA <- cut(x = BD$PA_PE, 
-                       breaks = c(Zona_PG_Cierre$MinimoRazon, Inf), 
-                       labels = Zona_PG_Cierre$Zona_PG
-  )
-  BD$ZONA_PG_PmaxPmin <- cut(x = BD$PmaxPmin_PE, 
-                             breaks = c(Zona_PG_Cierre$MinimoRazon, Inf), 
-                             labels = Zona_PG_Cierre$Zona_PG
-  )
+  # Cálculo de umbrales de la razón PA/PE para las zonas de ganancia/pérdida
+  SL_FIJO_PA <- Zona_PG_Cierre$MaximoRazon[Zona_PG_Cierre$Zona_PG == "Stop Loss"]
+  BD$SL_MOVIL_PA <- shift(ifelse(BD$DECISION_SIF == "HOLD POSITION",
+                                 ((1 + BD$PA_PE) * (1 + SL_FIJO_PA) - 1),
+                                 ifelse(BD$DECISION_SIF == "OPEN" | BD$DECISION_SIF == "CLOSE-OPEN",
+                                        SL_FIJO_PA,
+                                        NA
+                                        )
+                                 ),
+                          n=1, fill=NA
+                          )
+  BD$SL_MOVIL_PA <- ifelse(BD$DECISION_SIF == "CLOSE" | BD$DECISION_SIF == "CLOSE-OPEN",
+                           NA, BD$SL_MOVIL_PA
+                           )
+  BD$SL_MOVIL_PA <- ave(BD$SL_MOVIL_PA, 
+                        cumsum(is.na(BD$SL_MOVIL_PA) != c(T,is.na(BD$SL_MOVIL_PA)[1:N-1])), # Vector de grupos (se construye haciendo el cumsum de un veCtor con VERDADERO en puntos de inicio)
+                        FUN = cummax
+                        )
+  TP_FIJO_PA <- Zona_PG_Cierre$MinimoRazon[Zona_PG_Cierre$Zona_PG == "Take Profit"]
+  BD$TP_MOVIL_PA <- shift(ifelse(BD$DECISION_SIF == "HOLD POSITION",
+                                 ((1 + BD$PA_PE) * (1 + TP_FIJO_PA) - 1),
+                                 ifelse(BD$DECISION_SIF == "OPEN" | BD$DECISION_SIF == "CLOSE-OPEN",
+                                        TP_FIJO_PA,
+                                        NA
+                                        )
+                                 ),
+                          n=1, fill=NA
+                          )
+  BD$TP_MOVIL_PA <- ifelse(BD$DECISION_SIF == "CLOSE" | BD$DECISION_SIF == "CLOSE-OPEN", 
+                           NA, BD$TP_MOVIL_PA
+                           )
+  BD$TP_MOVIL_PA <- ave(BD$TP_MOVIL_PA, 
+                        cumsum(is.na(BD$TP_MOVIL_PA) != c(T,is.na(BD$TP_MOVIL_PA)[1:N-1])), # Vector de grupos (se construye haciendo el cumsum de un veCtor con VERDADERO en puntos de inicio)
+                        FUN = cummax
+                        )
+
+  # Cálculo de umbrales de la razón Pmax/PE o Pmin/PE para las zonas de ganancia/pérdida
+  SL_FIJO_PmaxPmin <- Zona_PG_Cierre$MaximoRazon[Zona_PG_Cierre$Zona_PG == "Stop Loss"]
+  BD$SL_MOVIL_PmaxPmin <- shift(ifelse(BD$DECISION_SIF == "HOLD POSITION",
+                                       ((1 + BD$PmaxPmin_PE) * (1 + SL_FIJO_PmaxPmin) - 1),
+                                       ifelse(BD$DECISION_SIF == "OPEN" | BD$DECISION_SIF == "CLOSE-OPEN",
+                                              SL_FIJO_PmaxPmin,
+                                              NA
+                                              )
+                                       ),
+                                n=1, fill=NA
+                                )
+  BD$SL_MOVIL_PmaxPmin <- ifelse(BD$DECISION_SIF == "CLOSE" | BD$DECISION_SIF == "CLOSE-OPEN", 
+                                 NA, BD$SL_MOVIL_PmaxPmin)
+  BD$SL_MOVIL_PmaxPmin <- ave(BD$SL_MOVIL_PmaxPmin,
+                              cumsum(is.na(BD$SL_MOVIL_PmaxPmin) != c(T,is.na(BD$SL_MOVIL_PmaxPmin)[1:N-1])), # Vector de grupos (se construye haciendo el cumsum de un veCtor con VERDADERO en puntos de inicio)
+                              FUN = cummax
+                              )
+  TP_FIJO_PmaxPmin <- Zona_PG_Cierre$MinimoRazon[Zona_PG_Cierre$Zona_PG == "Take Profit"]
+  BD$TP_MOVIL_PmaxPmin <- shift(ifelse(BD$DECISION_SIF == "HOLD POSITION",
+                                       ((1 + BD$PmaxPmin_PE) * (1 + TP_FIJO_PmaxPmin) - 1),
+                                       ifelse(BD$DECISION_SIF == "OPEN" | BD$DECISION_SIF == "CLOSE-OPEN",
+                                              TP_FIJO_PmaxPmin,
+                                              NA
+                                              )
+                                       ),
+                                n=1, fill=NA
+                                )
+  BD$TP_MOVIL_PmaxPmin <- ifelse(BD$DECISION_SIF == "CLOSE" | BD$DECISION_SIF == "CLOSE-OPEN",
+                                 NA, BD$TP_MOVIL_PmaxPmin
+                                 )
+  BD$TP_MOVIL_PmaxPmin <- ave(BD$TP_MOVIL_PmaxPmin,
+                              cumsum(is.na(BD$TP_MOVIL_PmaxPmin) != c(T,is.na(BD$TP_MOVIL_PmaxPmin)[1:N-1])), # Vector de grupos (se construye haciendo el cumsum de un veCtor con VERDADERO en puntos de inicio)
+                              FUN = cummax
+                              )
+
+  # Asignación de zonas de ganancia/pérdida para cierres de posiciones  
+  BD$ZONA_PG_PA <- ifelse(BD$PA_PE <= BD$SL_MOVIL_PA,
+                          "Stop Loss",
+                          ifelse(BD$PA_PE > BD$SL_MOVIL_PA & BD$PA_PE <= 0,
+                                 "Low Loss",
+                                 ifelse(BD$PA_PE > 0 & BD$PA_PE <= BD$TP_MOVIL_PA,
+                                        "Low Profit",
+                                        "Take Profit"
+                                        )
+                                 )
+                          )
+  BD$ZONA_PG_PmaxPmin <- ifelse(BD$PmaxPmin_PE <= BD$SL_MOVIL_PmaxPmin,
+                                "Stop Loss",
+                                ifelse(BD$PmaxPmin_PE > BD$SL_MOVIL_PmaxPmin & BD$PmaxPmin_PE <= 0,
+                                       "Low Loss",
+                                       ifelse(BD$PmaxPmin_PE > 0 & BD$PmaxPmin_PE <= BD$TP_MOVIL_PmaxPmin,
+                                              "Low Profit",
+                                              "Take Profit"
+                                              )
+                                       )
+                                )
   BD$CIERRE_PA <- -Zona_PG_Cierre$Cierre[match(BD$ZONA_PG_PA, Zona_PG_Cierre$Zona_PG)]
   BD$CIERRE_PmaxPmin <- -Zona_PG_Cierre$Cierre[match(BD$ZONA_PG_PmaxPmin, Zona_PG_Cierre$Zona_PG)]
   BD$CIERREPARCIAL <- ifelse((BD$CIERRE_PA + BD$CIERRE_PmaxPmin) < -1,
                              -1,
                              (BD$CIERRE_PA + BD$CIERRE_PmaxPmin)
-  )
+                             )
+  
   # Acumulado irrestricto de cierres parciales (SIN ajuste por valores menores a -1)
   BD$CIERRE_ACUM <- ave(BD$CIERREPARCIAL, 
-                        cumsum(is.na(BD$CIERREPARCIAL) != c(T,is.na(BD$CIERREPARCIAL)[1:N-1])), # Vector de grupos (se construye haciendo el cumsum de un vextor con VERDADERO en puntos de inicio)
+                        cumsum(is.na(BD$CIERREPARCIAL) != c(T,is.na(BD$CIERREPARCIAL)[1:N-1])), # Vector de grupos (se construye haciendo el cumsum de un vector con VERDADERO en puntos de inicio)
                         FUN = cumsum
-  )
+                        )
+  
   # Acumulado acotado de cierres parciales (CON ajuste por valores menores a -1)
   BD$CIERRE_ACUM <- ifelse(BD$CIERRE_ACUM < -1,
                            -1,
                            BD$CIERRE_ACUM
-  )
+                           )
   
   BD$POS_ABIERTA <- ifelse(BD$DECISION_SIF == "OPEN",
                            1, # Si decisión es "OPEN"
@@ -728,7 +799,7 @@ FunDecision_Final <- function(BD) {
   
 }
 
-BDPSList <- lapply(BDList, FunDecision_Final) # Complementa lista de BDs
+BDList <- lapply(BDList, FunDecision_Final) # Complementa lista de BDs
 
 # Asignación de PENTRADA, PCIERRE y signos de cortos/largos con base en decisión de inversión final
 
@@ -779,10 +850,26 @@ Fun_PE_PC_SENALSIGNO_SL_TP <- function(BD) {
   
 }
 
-BDPSList <- lapply(BDList, Fun_PE_PC_SENALSIGNO_SL_TP) # Complementa lista de BDs
+BDList <- lapply(BDList, Fun_PE_PC_SENALSIGNO_SL_TP) # Complementa lista de BDs
 
 
 # 13. CÁLCULO POSICIÓN Y VALORACIÓN [PROPUESTA] ###############################
+
+# Cargue de parámetros de negociación (BAS y comisión)
+
+BAS <- as.numeric(read_excel(ArchivoInsumos, 
+                             sheet = "Insumos",
+                             range = "B12",
+                             col_names = FALSE
+                             )
+                  )
+
+Comision <- as.numeric(read_excel(ArchivoInsumos, 
+                                  sheet = "Insumos",
+                                  range = "B13",
+                                  col_names = FALSE
+                                  )
+                       )
 
 # Cálculo de posición y valoración del portafolio suponiendo solo posiciones largas
 
@@ -805,6 +892,7 @@ Fun_POS_VAL_PORT <- function(BD) {
   BD$VAL_POSFINAL <- c(0, rep(NA, (N-1)))
   BD$EFECTIVO <- c(FONDEOINICIAL, rep(NA, (N-1)))
   BD$VAL_PORT <- c((BD$VOL_POSFINAL[1]*BD$CLOSE[1]+BD$EFECTIVO[1]), rep(NA, (N-1)))
+  BD$COMISON <- c(0, rep(NA, (N-1)))
   
   for (t in 2:N) {
     
@@ -815,24 +903,24 @@ Fun_POS_VAL_PORT <- function(BD) {
       
       BD$VAL_VENTAS[t] <- 0
       BD$VOL_VENTAS[t] <- BD$VAL_VENTAS[t] / BD$PENTRADA[t]
-      BD$VAL_COMPRAS[t] <- BD$EFECTIVO[t-1]
-      BD$VOL_COMPRAS[t] <- BD$VAL_COMPRAS[t] / BD$PENTRADA[t]
-      
+      BD$VAL_COMPRAS[t] <- BD$EFECTIVO[t-1] * (1 - Comision)
+      BD$VOL_COMPRAS[t] <- BD$VAL_COMPRAS[t] / (BD$PENTRADA[t] * (1 + BAS))
+          
     } else { # Si decisiÓn NO es "OPEN"
       
       if (BD$DECISION_FINAL[t] == "CLOSE-OPEN") { # Si decisiÓn es "CLOSE-OPEN"
         
         BD$VOL_VENTAS[t] <- BD$VOL_POSFINAL[t-1]
-        BD$VAL_VENTAS[t] <- BD$VOL_VENTAS[t] * BD$PCIERRE[t]
-        BD$VAL_COMPRAS[t] <- BD$VAL_VENTAS[t]
-        BD$VOL_COMPRAS[t] <- BD$VAL_COMPRAS[t] / BD$CLOSE[t]
+        BD$VAL_VENTAS[t] <- (BD$VOL_VENTAS[t] * (BD$PCIERRE[t] * (1 - BAS))) * (1 - Comision)
+        BD$VAL_COMPRAS[t] <- BD$VAL_VENTAS[t] * (1 - Comision)
+        BD$VOL_COMPRAS[t] <- BD$VAL_COMPRAS[t] / (BD$CLOSE[t] * (1 + BAS))
         
       } else { # Si decisiÓn NO es "OPEN" ni "CLOSE-OPEN"
         
         if (BD$DECISION_FINAL[t] == "CLOSE") { # Si decisiÓn es "CLOSE"
           
           BD$VOL_VENTAS[t] <- BD$VOL_POSFINAL[t-1]
-          BD$VAL_VENTAS[t] <- BD$VOL_VENTAS[t] * BD$PCIERRE[t]
+          BD$VAL_VENTAS[t] <- (BD$VOL_VENTAS[t] * (BD$PCIERRE[t] * (1 - BAS))) * (1 + Comision)
           BD$VAL_COMPRAS[t] <- 0
           BD$VOL_COMPRAS[t] <- 0
           
@@ -867,6 +955,7 @@ Fun_POS_VAL_PORT <- function(BD) {
     BD$VAL_POSFINAL[t] <- BD$VOL_POSFINAL[t] * BD$CLOSE[t]
     BD$EFECTIVO[t] <- BD$EFECTIVO[t-1] + BD$VAL_VENTAS[t] - BD$VAL_COMPRAS[t]
     BD$VAL_PORT[t] <- BD$VAL_POSFINAL[t] + BD$EFECTIVO[t]
+    BD$COMISON <- (BD$VAL_COMPRAS + BD$VAL_VENTAS) * Comision / (1 - Comision)
     
   }
   
@@ -876,9 +965,10 @@ Fun_POS_VAL_PORT <- function(BD) {
 }
 
 StartT <- Sys.time()
-BDPSList <- lapply(BDPSList, Fun_POS_VAL_PORT)
+BDList <- lapply(BDList, Fun_POS_VAL_PORT)
 EndT <- Sys.time()
 TElapsed <- EndT - StartT
+
 
 # 14. CÁLCULO ESTADÍSTICAS RETORNO Y RIESGO [PROPUESTA] #######################
 
@@ -1123,8 +1213,8 @@ Fun_Est_Riesgo_Retorno <- function(BD) {
   
 }
 
-BDPSList <- lapply(BDPSList, Fun_Est_Riesgo_Retorno) # Construye lista de listas
-names(BDPSList) <- rownames(Senales)
+BDList <- lapply(BDList, Fun_Est_Riesgo_Retorno) # Construye lista de listas
+names(BDList) <- rownames(Senales)
 
 
 # 15. RESUMEN ESTADÍSTICAS ESTRATEGIAS [PROPUESTA] ############################
@@ -1160,7 +1250,7 @@ Fun_R_R_Tot <- function(List) {
 
 # Obtención y exportación de estadísticas retorno y riesgo de cada estrategia
 SenalesSwell <- Senales
-Senales <- cbind(Senales, t(sapply(BDPSList, Fun_R_R_Tot)))
+Senales <- cbind(Senales, t(sapply(BDList, Fun_R_R_Tot)))
 Senales$RetAcum <- unlist(Senales$RetAcum)
 Senales$ValAcumB100 <- unlist(Senales$ValAcumB100)
 Senales$MaxPerdAcum <- unlist(Senales$MaxPerdAcum)
@@ -1345,15 +1435,15 @@ EstrategiaOpt <- rownames(Senales)[NEstrategiaOpt]
 paste0("La estrategia óptima es ", EstrategiaOpt)
 
 # Visualización y exportación BD estrategia óptima
-View(BDPSList[[EstrategiaOpt]]$BD)
+View(BDList[[EstrategiaOpt]]$BD)
 ArchivoResultadosOpt <- createWorkbook()
 addWorksheet(wb = ArchivoResultadosOpt, sheetName = "Senales")
 writeData(wb = ArchivoResultadosOpt, sheet = "Senales", x = Senales)
 addWorksheet(wb = ArchivoResultadosOpt, sheetName = "BDI")
-writeData(wb = ArchivoResultadosOpt, sheet = "BDI", x = BDPSList[[EstrategiaOpt]]$BD)
+writeData(wb = ArchivoResultadosOpt, sheet = "BDI", x = BDList[[EstrategiaOpt]]$BD)
 
 # Visualización y exportación gráfico valor portafolio estrategia óptima
-Graf_ValPortAcumB100 <- BDPSList[[EstrategiaOpt]]$Graf_ValPortAcumB100 +
+Graf_ValPortAcumB100 <- BDList[[EstrategiaOpt]]$Graf_ValPortAcumB100 +
   ggtitle(paste0("Valor portafolio estrategia ", EstrategiaOpt, " (Base 100)"))
 print(Graf_ValPortAcumB100)
 ggsave(path = BaseDirPath, 
@@ -1363,15 +1453,15 @@ ggsave(path = BaseDirPath,
       ) 
 
 # Visualización y exportación de estadísticas de retorno y riesgo de estrategia óptima
-View(BDPSList[[EstrategiaOpt]]$BDRDiario)
+View(BDList[[EstrategiaOpt]]$BDRDiario)
 addWorksheet(wb = ArchivoResultadosOpt, sheetName = "RetornosDiarios")
-writeData(wb = ArchivoResultadosOpt, sheet = "RetornosDiarios", x = BDPSList[[EstrategiaOpt]]$BDRDiario)
-View(BDPSList[[EstrategiaOpt]]$BDRMensual)
+writeData(wb = ArchivoResultadosOpt, sheet = "RetornosDiarios", x = BDList[[EstrategiaOpt]]$BDRDiario)
+View(BDList[[EstrategiaOpt]]$BDRMensual)
 addWorksheet(wb = ArchivoResultadosOpt, sheetName = "RetornosMensuales")
-writeData(wb = ArchivoResultadosOpt, sheet = "RetornosMensuales", x = BDPSList[[EstrategiaOpt]]$BDRMensual)
-View(BDPSList[[EstrategiaOpt]]$BDRAnual)
+writeData(wb = ArchivoResultadosOpt, sheet = "RetornosMensuales", x = BDList[[EstrategiaOpt]]$BDRMensual)
+View(BDList[[EstrategiaOpt]]$BDRAnual)
 addWorksheet(wb = ArchivoResultadosOpt, sheetName = "RetornosAnuales")
-writeData(wb = ArchivoResultadosOpt, sheet = "RetornosAnuales", x = BDPSList[[EstrategiaOpt]]$BDRAnual)
+writeData(wb = ArchivoResultadosOpt, sheet = "RetornosAnuales", x = BDList[[EstrategiaOpt]]$BDRAnual)
 Nombre_BD_EstrategiaOpt <- Senales$NombreBD[NEstrategiaOpt]
 NombreArchivoResultadosOpt <- paste0(Nombre_BD_EstrategiaOpt, "_Propuesta.xlsx")
 saveWorkbook(wb = ArchivoResultadosOpt, 
@@ -1393,15 +1483,15 @@ NEstrategiaSel <- which(rownames(Senales) == EstrategiaSel)
 paste0("La estrategia seleccionada es ", EstrategiaSel)
 
 # Visualización y exportación BD estrategia seleccionada
-View(BDPSList[[EstrategiaSel]]$BD)
+View(BDList[[EstrategiaSel]]$BD)
 ArchivoResultadosSel <- createWorkbook()
 addWorksheet(wb = ArchivoResultadosSel, sheetName = "Senales")
 writeData(wb = ArchivoResultadosSel, sheet = "Senales", x = Senales)
 addWorksheet(wb = ArchivoResultadosSel, sheetName = "BDI")
-writeData(wb = ArchivoResultadosSel, sheet = "BDI", x = BDPSList[[EstrategiaSel]]$BD)
+writeData(wb = ArchivoResultadosSel, sheet = "BDI", x = BDList[[EstrategiaSel]]$BD)
 
 # Visualización y exportación gráfico valor portafolio estrategia seleccionada
-Graf_ValPortAcumB100 <- BDPSList[[EstrategiaSel]]$Graf_ValPortAcumB100 +
+Graf_ValPortAcumB100 <- BDList[[EstrategiaSel]]$Graf_ValPortAcumB100 +
   ggtitle(paste0("Valor portafolio estrategia ", EstrategiaSel, " (Base 100)"))
 print(Graf_ValPortAcumB100)
 ggsave(path = BaseDirPath, 
@@ -1411,15 +1501,15 @@ ggsave(path = BaseDirPath,
       ) 
 
 # Visualización y exportación de estadísticas de retorno y riesgo de estrategia seleccionada
-View(BDPSList[[EstrategiaSel]]$BDRDiario)
+View(BDList[[EstrategiaSel]]$BDRDiario)
 addWorksheet(wb = ArchivoResultadosSel, sheetName = "RetornosDiarios")
-writeData(wb = ArchivoResultadosSel, sheet = "RetornosDiarios", x = BDPSList[[EstrategiaSel]]$BDRDiario)
-View(BDPSList[[EstrategiaSel]]$BDRMensual)
+writeData(wb = ArchivoResultadosSel, sheet = "RetornosDiarios", x = BDList[[EstrategiaSel]]$BDRDiario)
+View(BDList[[EstrategiaSel]]$BDRMensual)
 addWorksheet(wb = ArchivoResultadosSel, sheetName = "RetornosMensuales")
-writeData(wb = ArchivoResultadosSel, sheet = "RetornosMensuales", x = BDPSList[[EstrategiaSel]]$BDRMensual)
-View(BDPSList[[EstrategiaSel]]$BDRAnual)
+writeData(wb = ArchivoResultadosSel, sheet = "RetornosMensuales", x = BDList[[EstrategiaSel]]$BDRMensual)
+View(BDList[[EstrategiaSel]]$BDRAnual)
 addWorksheet(wb = ArchivoResultadosSel, sheetName = "RetornosAnuales")
-writeData(wb = ArchivoResultadosSel, sheet = "RetornosAnuales", x = BDPSList[[EstrategiaSel]]$BDRAnual)
+writeData(wb = ArchivoResultadosSel, sheet = "RetornosAnuales", x = BDList[[EstrategiaSel]]$BDRAnual)
 Nombre_BD_EstrategiaSel <- Senales$NombreBD[NEstrategiaSel]
 NombreArchivoResultadosSel <- paste0(Nombre_BD_EstrategiaSel, "_Propuesta.xlsx")
 saveWorkbook(wb = ArchivoResultadosSel, 
