@@ -1,5 +1,5 @@
 ###  Estrategia y estadísticas ETF ECH (Réplica Swell vs Propuesto)  ###
-###                            2021-05-16                            ###
+###                            2021-05-25                            ###
 ###                           Version 0.3                            ###  
 ###                Authors: Olga Serna / Ivan Serrano                ###
 
@@ -575,10 +575,11 @@ Zona_PG_Cierre <- read_excel(ArchivoInsumos,
                              range = "A1:D5",
                              col_names = TRUE
                              )
-Zona_PG_Cierre$MinimoRazon[1] <- -Inf
-Zona_PG_Cierre$MaximoRazon[length(Zona_PG_Cierre$MinimoRazon)] <- Inf
+Zona_PG_Cierre$MaximoRazon[1] <- Inf
+Zona_PG_Cierre$MinimoRazon[length(Zona_PG_Cierre$MinimoRazon)] <- -Inf
 
-# Asignación de PENTRADA, PCIERRE y signos de cortos/largos únicamente con base en SIF
+# Asignación de PENTRADA, PCIERRE y signos de cortos/largos únicamente con base
+# en SIF
 
 Fun_PE_PC_SENALSIGNO <- function(BD) {
   
@@ -658,7 +659,8 @@ FunDecision_Final <- function(BD) {
                           n=1, fill=NA
                           )
   BD$SL_MOVIL_PA <- ifelse(BD$DECISION_SIF == "CLOSE" | BD$DECISION_SIF == "CLOSE-OPEN",
-                           NA, BD$SL_MOVIL_PA
+                           NA, 
+                           BD$SL_MOVIL_PA
                            )
   BD$SL_MOVIL_PA <- ave(BD$SL_MOVIL_PA, 
                         cumsum(is.na(BD$SL_MOVIL_PA) != c(T,is.na(BD$SL_MOVIL_PA)[1:N-1])), # Vector de grupos (se construye haciendo el cumsum de un veCtor con VERDADERO en puntos de inicio)
@@ -675,7 +677,8 @@ FunDecision_Final <- function(BD) {
                           n=1, fill=NA
                           )
   BD$TP_MOVIL_PA <- ifelse(BD$DECISION_SIF == "CLOSE" | BD$DECISION_SIF == "CLOSE-OPEN", 
-                           NA, BD$TP_MOVIL_PA
+                           NA, 
+                           BD$TP_MOVIL_PA
                            )
   BD$TP_MOVIL_PA <- ave(BD$TP_MOVIL_PA, 
                         cumsum(is.na(BD$TP_MOVIL_PA) != c(T,is.na(BD$TP_MOVIL_PA)[1:N-1])), # Vector de grupos (se construye haciendo el cumsum de un veCtor con VERDADERO en puntos de inicio)
@@ -694,7 +697,9 @@ FunDecision_Final <- function(BD) {
                                 n=1, fill=NA
                                 )
   BD$SL_MOVIL_PmaxPmin <- ifelse(BD$DECISION_SIF == "CLOSE" | BD$DECISION_SIF == "CLOSE-OPEN", 
-                                 NA, BD$SL_MOVIL_PmaxPmin)
+                                 NA, 
+                                 BD$SL_MOVIL_PmaxPmin
+                                 )
   BD$SL_MOVIL_PmaxPmin <- ave(BD$SL_MOVIL_PmaxPmin,
                               cumsum(is.na(BD$SL_MOVIL_PmaxPmin) != c(T,is.na(BD$SL_MOVIL_PmaxPmin)[1:N-1])), # Vector de grupos (se construye haciendo el cumsum de un veCtor con VERDADERO en puntos de inicio)
                               FUN = cummax
@@ -710,7 +715,8 @@ FunDecision_Final <- function(BD) {
                                 n=1, fill=NA
                                 )
   BD$TP_MOVIL_PmaxPmin <- ifelse(BD$DECISION_SIF == "CLOSE" | BD$DECISION_SIF == "CLOSE-OPEN",
-                                 NA, BD$TP_MOVIL_PmaxPmin
+                                 NA, 
+                                 BD$TP_MOVIL_PmaxPmin
                                  )
   BD$TP_MOVIL_PmaxPmin <- ave(BD$TP_MOVIL_PmaxPmin,
                               cumsum(is.na(BD$TP_MOVIL_PmaxPmin) != c(T,is.na(BD$TP_MOVIL_PmaxPmin)[1:N-1])), # Vector de grupos (se construye haciendo el cumsum de un veCtor con VERDADERO en puntos de inicio)
@@ -801,7 +807,8 @@ FunDecision_Final <- function(BD) {
 
 BDList <- lapply(BDList, FunDecision_Final) # Complementa lista de BDs
 
-# Asignación de PENTRADA, PCIERRE y signos de cortos/largos con base en decisión de inversión final
+# Asignación de PENTRADA, PCIERRE y signos de cortos/largos con base en decisión
+# de inversión final
 
 Fun_PE_PC_SENALSIGNO_SL_TP <- function(BD) {
   
