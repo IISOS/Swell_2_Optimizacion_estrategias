@@ -1,5 +1,5 @@
 ###                         Optimización BTC                         ###
-###                            2021-06-05                            ###
+###                            2021-06-07                            ###
 ###                           Version  0.4                           ###
 ###                Autores: Olga Serna / Ivan Serrano                ###
 
@@ -292,6 +292,7 @@ if (NFHC == 0) {
 
 N <- length(BDPI$DATEFRAME)
 
+rm(list = c("BD_Descartada"))
 
 # 06. VELA DIARIA #############################################################
 
@@ -632,6 +633,9 @@ Cal_TP_SL$CIERRE_TP <- t(TablaNivelesOpt[match("Cierre Take Profit",TablaNiveles
                                   (Cal_TP_SL$CIERRE_TP+1)
                                   ]
                          )
+
+# Inclusion de parámetros de control, sin considerar TP y SL
+Cal_TP_SL[(NPosibilidades_Opt + 1),] <- c(-Inf,Inf,0,0,NA,NA)
 
 # Función consolidada para DIF, valoración y estadísticas
 
@@ -1350,8 +1354,7 @@ FunDIFValEst <- function(ListaBD, TP, SL, CierreTP, CierreLL) {
   
   # 12.6. OBJETIVOS Y RESULTADOS ##############################################
   
-  return(list(ListaBD = ListaBD,
-              ListaEst = EstList,
+  return(list(ListaEst = EstList,
               Senales = Senales,
               RAA_MPA = Senales$RAA_MPA[NEstrategiaOpt],
               EstOpt = EstrategiaOpt
@@ -1365,7 +1368,8 @@ FunDIFValEst <- function(ListaBD, TP, SL, CierreTP, CierreLL) {
 # 13. OPTIMIZACIÓN DE SL, TP Y CIERRES PARCIALES ##############################
 
 # Obtención de estrategia óptima y su R_MPA para cada combinación de parámetros
-for (i in 1:NPosibilidades_Opt) {
+StartT <- Sys.time()
+for (i in 1:(NPosibilidades_Opt + 1)) {
   
   ResEstrategias <- FunDIFValEst(BDList,
                                  Cal_TP_SL$TP[i],
@@ -1376,28 +1380,43 @@ for (i in 1:NPosibilidades_Opt) {
   
   Cal_TP_SL[i,c("R_MDD", "EST_OPTIMA")] <- ResEstrategias[c("RAA_MPA","EstOpt")]
   
+  print(paste0("El proceso correspondiente a la combinación ",
+               i,
+               " de ",
+               (NPosibilidades_Opt + 1),
+               " ha finalizado"
+  )
+  )
+  
 }
+EndT <- Sys.time()
+TElapsed <- EndT - StartT
+TElapsed
 
-NEstParamOpt <- which.max(Cal_TP_SL$R_MDD)
+NEstParamOpt <- which.max(Cal_TP_SL$R_MDD[1:NPosibilidades_Opt])
 EstParamOpt <- Cal_TP_SL$EST_OPTIMA[NEstParamOpt]
+
 
 # 14. RESULTADOS DE ESTRATEGIA CON PARÁMETROS DE NEGOCIACIÓN ÓPTIMOS ##########
 
 
-# Obtención de insumos para funciones de estrategia con parámetros de negociación óptimos
-ResEstrategias <- FunDIFValEst(BDList,
-                               Cal_TP_SL$TP[NEstParamOpt],
-                               Cal_TP_SL$SL[NEstParamOpt],
-                               Cal_TP_SL$CIERRE_TP[NEstParamOpt],
-                               Cal_TP_SL$CIERRE_LL[NEstParamOpt]
-                               )
+# Obtención de insumos para exportación de estadísticas y gráficos
+EstrategiaOpt <- FunDIFValEst(BDList,
+                              Cal_TP_SL$TP[NEstParamOpt],
+                              Cal_TP_SL$SL[NEstParamOpt],
+                              Cal_TP_SL$CIERRE_TP[NEstParamOpt],
+                              Cal_TP_SL$CIERRE_LL[NEstParamOpt]
+                              )
 
-SenalesOpt <- ResEstrategias[[c("Senales")]]
-BDListOpt <- ResEstrategias[[c("ListaBD")]]
-ListaEstOpt <- ResEstrategias[[c("ListaEst")]]
+EstrategiaBase <- FunDIFValEst(BDList,
+                               Cal_TP_SL$TP[NPosibilidades_Opt + 1],
+                               Cal_TP_SL$SL[NPosibilidades_Opt + 1],
+                               Cal_TP_SL$CIERRE_TP[NPosibilidades_Opt + 1],
+                               Cal_TP_SL$CIERRE_LL[NPosibilidades_Opt + 1]
+)
 
-# Funcion para exportacion de estadisticas y graficos de estrategia optima
-FunExp <- function(SenalesOpt) {
+# Funcion para exportacion de graficos comparativos entre estrategias
+FunExpComp <- function(SenalesOpt) {
   
   # Preparación de datos para gráficos
   SenalesOpt$RetAcum <- unlist(SenalesOpt$RetAcum)
@@ -1578,10 +1597,10 @@ FunExp <- function(SenalesOpt) {
   
 }
 
-FunExp(SenalesOpt)
+FunExpComp(EstrategiaOpt[[c("Senales")]])
 
-# Funcion para exportacion de estadisticas y graficos de estrategia optima
-FunEstParamOpt <- function(ListaEstOpt, SenalesOpt) {
+# Funcion para exportacion de estadisticas y graficos de estrategia optima y base
+FunEstParamOpt <- function(ListaEstOpt, SenalesOpt, ListaEstBase) {
   
   # Visualización y exportación BD estrategia óptima
   View(ListaEstOpt[[EstParamOpt]]$BD)
@@ -1590,10 +1609,42 @@ FunEstParamOpt <- function(ListaEstOpt, SenalesOpt) {
   writeData(wb = ArchivoResultadosOpt, sheet = "SenalesOpt", x = SenalesOpt)
   addWorksheet(wb = ArchivoResultadosOpt, sheetName = "BDI")
   writeData(wb = ArchivoResultadosOpt, sheet = "BDI", x = ListaEstOpt[[EstParamOpt]]$BD)
-  
+
   # Visualización y exportación gráfico valor portafolio estrategia óptima
   Graf_ValPortAcumB100 <- ListaEstOpt[[EstParamOpt]]$Graf_ValPortAcumB100 +
     ggtitle(paste0("Valor portafolio estrategia ", EstParamOpt, " (Base 100)"))
+  print(Graf_ValPortAcumB100)
+  ggsave(path = BaseDirPath, 
+         plot = Graf_ValPortAcumB100,
+         filename = "Valor portafolio estrategia.png",
+         scale = 2
+  ) 
+
+  # Visualización y exportación gráfico valor portafolio estrategia óptima
+  # con y sin aplicación de parámetros de negociación
+  
+  BDOptBase <- ListaEstOpt[[EstParamOpt]]$BD
+  BDOptBase$VAL_PORT_ACUM_B100_BASE <- ListaEstBase[[EstParamOpt]]$BD$VAL_PORT_ACUM_B100
+  Graf_ValPortAcumB100_OptBase <- ggplot(BDOptBase, aes(x = DATE)) +
+    geom_line(aes(y = VAL_PORT_ACUM_B100, color = "Opt"), size = 1) +
+    geom_line(aes(y = VAL_PORT_ACUM_B100_BASE, color = "Base"), size = 1) +
+    scale_colour_manual("", values = c("Opt"="red", "Base"="darkblue"), breaks=c("Opt","Base")) +
+    ggtitle("Valor portafolio (Base 100)") + 
+    xlab("Fecha") + ylab("Valor (Base 100)") +
+    expand_limits(x = BDOptBase$DATE[1]) +
+    expand_limits(y = 0) +
+    PlantillaG
+  
+  print(Graf_ValPortAcumB100_OptBase)
+  ggsave(path = BaseDirPath, 
+         plot = Graf_ValPortAcumB100_OptBase,
+         filename = "Valor portafolio estrategia (Opt. vs. Base).png",
+         scale = 2
+  ) 
+  
+  Graf_ValPortAcumB100 <- ListaEstOpt[[EstParamOpt]]$Graf_ValPortAcumB100 +
+    ggtitle(paste0("Valor portafolio estrategia ", EstParamOpt, " (Base 100)"))
+  
   print(Graf_ValPortAcumB100)
   ggsave(path = BaseDirPath, 
          plot = Graf_ValPortAcumB100,
@@ -1617,10 +1668,32 @@ FunEstParamOpt <- function(ListaEstOpt, SenalesOpt) {
                file = NombreArchivoResultadosOpt, 
                overwrite = TRUE
   )
+
+  # Exportación BD estrategia con escenario base de parámetros de negociación
+  ArchivoBDEstrategiaParamBase <- createWorkbook()
+  addWorksheet(wb = ArchivoBDEstrategiaParamBase, sheetName = "BDI")
+  writeData(wb = ArchivoBDEstrategiaParamBase, sheet = "BDI", x = ListaEstBase[[EstParamOpt]]$BD)
+  NombreArchivoBDEstrategiaParamBase <- paste0(Nombre_BD_EstParamOpt, "_Propuesta_Base.xlsx")
+  saveWorkbook(wb = ArchivoBDEstrategiaParamBase, 
+               file = NombreArchivoBDEstrategiaParamBase, 
+               overwrite = TRUE
+  )
   
+  # Visualización y exportación de combinaciones de parámetros 
+  ArchivoParamOpt <- createWorkbook()
+  addWorksheet(wb = ArchivoParamOpt, sheetName = "Calibracion TP y SL")
+  writeData(wb = ArchivoParamOpt, sheet = "Calibracion TP y SL", x = Cal_TP_SL)
+  NombreArchivoParamOpt <- "Calibracion TP y SL.xlsx"
+  saveWorkbook(wb = ArchivoParamOpt, 
+               file = NombreArchivoParamOpt, 
+               overwrite = TRUE
+  )
   
 }
 
-FunEstParamOpt(ListaEstOpt, SenalesOpt)
+FunEstParamOpt(EstrategiaOpt[[c("ListaEst")]], 
+               EstrategiaOpt[[c("Senales")]],
+               EstrategiaBase[[c("ListaEst")]] 
+               )
 
-
+rm(list = c("EstrategiaBase", "ResEstrategias"))
