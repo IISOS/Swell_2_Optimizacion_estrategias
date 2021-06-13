@@ -575,12 +575,12 @@ TablaNivelesOpt <- read_excel(ArchivoInsumos,
                               )
 
 # Cálculo y asignación de niveles de SL y TP con base en retornos históricos del activo
-TablaNivelesOpt$Nivel1[match("Take Profit", TablaNivelesOpt$Variable)] <- quantile((BDPI$CLOSE/shift(BDPI$CLOSE, n=1, fill=NA) - 1), 0.7, na.rm = TRUE)
-TablaNivelesOpt$Nivel2[match("Take Profit", TablaNivelesOpt$Variable)] <- quantile((BDPI$CLOSE/shift(BDPI$CLOSE, n=1, fill=NA) - 1), 0.8, na.rm = TRUE)
-TablaNivelesOpt$Nivel3[match("Take Profit", TablaNivelesOpt$Variable)] <- quantile((BDPI$CLOSE/shift(BDPI$CLOSE, n=1, fill=NA) - 1), 0.9, na.rm = TRUE)
-TablaNivelesOpt$Nivel1[match("Stop Loss", TablaNivelesOpt$Variable)] <- quantile((BDPI$CLOSE/shift(BDPI$CLOSE, n=1, fill=NA) - 1), 0.1, na.rm = TRUE)
-TablaNivelesOpt$Nivel2[match("Stop Loss", TablaNivelesOpt$Variable)] <- quantile((BDPI$CLOSE/shift(BDPI$CLOSE, n=1, fill=NA) - 1), 0.2, na.rm = TRUE)
-TablaNivelesOpt$Nivel3[match("Stop Loss", TablaNivelesOpt$Variable)] <- quantile((BDPI$CLOSE/shift(BDPI$CLOSE, n=1, fill=NA) - 1), 0.3, na.rm = TRUE)
+TablaNivelesOpt$Nivel1[match("Take Profit", TablaNivelesOpt$Variable)] <- quantile((BDPI$CLOSE/shift(BDPI$CLOSE, n=1, fill=NA) - 1), 0.95, na.rm = TRUE)
+TablaNivelesOpt$Nivel2[match("Take Profit", TablaNivelesOpt$Variable)] <- quantile((BDPI$CLOSE/shift(BDPI$CLOSE, n=1, fill=NA) - 1), 0.975, na.rm = TRUE)
+TablaNivelesOpt$Nivel3[match("Take Profit", TablaNivelesOpt$Variable)] <- quantile((BDPI$CLOSE/shift(BDPI$CLOSE, n=1, fill=NA) - 1), 0.99, na.rm = TRUE)
+TablaNivelesOpt$Nivel1[match("Stop Loss", TablaNivelesOpt$Variable)] <- quantile((BDPI$CLOSE/shift(BDPI$CLOSE, n=1, fill=NA) - 1), 0.01, na.rm = TRUE)
+TablaNivelesOpt$Nivel2[match("Stop Loss", TablaNivelesOpt$Variable)] <- quantile((BDPI$CLOSE/shift(BDPI$CLOSE, n=1, fill=NA) - 1), 0.025, na.rm = TRUE)
+TablaNivelesOpt$Nivel3[match("Stop Loss", TablaNivelesOpt$Variable)] <- quantile((BDPI$CLOSE/shift(BDPI$CLOSE, n=1, fill=NA) - 1), 0.05, na.rm = TRUE)
 
 # Tabla de posibles combinaciones de niveles de parámetros para optimización
 NVariablesOpt <- 4
@@ -983,7 +983,7 @@ FunDIFValEst <- function(ListaBD, TP, SL, CierreTP, CierreLL) {
     BD$VAL_POSFINAL <- c(0, rep(NA, (N-1)))
     BD$EFECTIVO <- c(FONDEOINICIAL, rep(NA, (N-1)))
     BD$VAL_PORT <- c((BD$VOL_POSFINAL[1]*BD$CLOSE[1]+BD$EFECTIVO[1]), rep(NA, (N-1)))
-    BD$COMISON <- c(0, rep(NA, (N-1)))
+    BD$COMISION <- c(0, rep(NA, (N-1)))
     
     for (t in 2:N) {
       
@@ -993,25 +993,29 @@ FunDIFValEst <- function(ListaBD, TP, SL, CierreTP, CierreLL) {
       if (BD$DECISION_FINAL[t] == "OPEN") { # Si decisiÓn es "OPEN"
         
         BD$VAL_VENTAS[t] <- 0
-        BD$VOL_VENTAS[t] <- BD$VAL_VENTAS[t] / BD$PENTRADA[t]
+        BD$VOL_VENTAS[t] <- BD$VAL_VENTAS[t] / BD$PENTRADA[t] # 0
         BD$VAL_COMPRAS[t] <- BD$EFECTIVO[t-1] * (1 - Comision)
         BD$VOL_COMPRAS[t] <- BD$VAL_COMPRAS[t] / (BD$PENTRADA[t] * (1 + BAS))
+        BD$COMISION[t] <- BD$EFECTIVO[t-1] * Comision
         
       } else { # Si decisiÓn NO es "OPEN"
         
         if (BD$DECISION_FINAL[t] == "CLOSE-OPEN") { # Si decisiÓn es "CLOSE-OPEN"
           
           BD$VOL_VENTAS[t] <- BD$VOL_POSFINAL[t-1]
-          BD$VAL_VENTAS[t] <- (BD$VOL_VENTAS[t] * (BD$PCIERRE[t] * (1 - BAS))) * (1 - Comision)
-          BD$VAL_COMPRAS[t] <- BD$VAL_VENTAS[t] * (1 - Comision)
+          BD$VAL_VENTAS[t] <- (BD$VOL_VENTAS[t] * (BD$PCIERRE[t] * (1 - BAS)))
+          BD$COMISION[t] <- BD$VAL_VENTAS[t] * Comision
+          BD$VAL_COMPRAS[t] <- (BD$VAL_VENTAS[t] * (1 - Comision)) * (1 - Comision)
           BD$VOL_COMPRAS[t] <- BD$VAL_COMPRAS[t] / (BD$CLOSE[t] * (1 + BAS))
+          BD$COMISION[t] <- BD$COMISION[t] + ((BD$VAL_VENTAS[t] * (1 - Comision)) * Comision)
           
         } else { # Si decisiÓn NO es "OPEN" ni "CLOSE-OPEN"
           
           if (BD$DECISION_FINAL[t] == "CLOSE") { # Si decisiÓn es "CLOSE"
             
             BD$VOL_VENTAS[t] <- BD$VOL_POSFINAL[t-1]
-            BD$VAL_VENTAS[t] <- (BD$VOL_VENTAS[t] * (BD$PCIERRE[t] * (1 - BAS))) * (1 + Comision)
+            BD$VAL_VENTAS[t] <- (BD$VOL_VENTAS[t] * (BD$PCIERRE[t] * (1 - BAS)))
+            BD$COMISION[t] <- BD$VAL_VENTAS[t] * Comision
             BD$VAL_COMPRAS[t] <- 0
             BD$VOL_COMPRAS[t] <- 0
             
@@ -1023,6 +1027,7 @@ FunDIFValEst <- function(ListaBD, TP, SL, CierreTP, CierreLL) {
               BD$VAL_VENTAS[t] <- 0
               BD$VAL_COMPRAS[t] <- 0
               BD$VOL_COMPRAS[t] <- 0
+              BD$COMISION[t] <- 0
               
             } else { # Si decisiÓn es "NO POSITION"
               
@@ -1030,6 +1035,7 @@ FunDIFValEst <- function(ListaBD, TP, SL, CierreTP, CierreLL) {
               BD$VAL_VENTAS[t] <- 0
               BD$VAL_COMPRAS[t] <- 0
               BD$VOL_COMPRAS[t] <- 0
+              BD$COMISION[t] <- 0
               
             }
             
@@ -1044,9 +1050,9 @@ FunDIFValEst <- function(ListaBD, TP, SL, CierreTP, CierreLL) {
         BD$VOL_COMPRAS[t] -
         BD$VOL_VENTAS[t]
       BD$VAL_POSFINAL[t] <- BD$VOL_POSFINAL[t] * BD$CLOSE[t]
-      BD$EFECTIVO[t] <- BD$EFECTIVO[t-1] + BD$VAL_VENTAS[t] - BD$VAL_COMPRAS[t]
+      BD$EFECTIVO[t] <- round((BD$EFECTIVO[t-1] + BD$VAL_VENTAS[t] - BD$VAL_COMPRAS[t] - BD$COMISION[t]),
+                             7)
       BD$VAL_PORT[t] <- BD$VAL_POSFINAL[t] + BD$EFECTIVO[t]
-      BD$COMISON <- (BD$VAL_COMPRAS + BD$VAL_VENTAS) * Comision / (1 - Comision)
       
     }
     
@@ -1114,7 +1120,7 @@ FunDIFValEst <- function(ListaBD, TP, SL, CierreTP, CierreLL) {
     BD$MAX_PERD_ACUM <- c(0, rep(NA, (N-1)))
     
     # Retorno de cada FH
-    BD$RET <- ((BD$VAL_PORT / c(0, BD$VAL_PORT[1:N-1]) - 1)) * c(NA, BD$SENALSIGNO[1:N-1]) 
+    BD$RET <- (((BD$VAL_PORT + BD$COMISION) / c(0, BD$VAL_PORT[1:N-1]) - 1)) * c(NA, BD$SENALSIGNO[1:N-1]) 
     # Retorno acumulado y acumulado base 100
     BD$RET_ACUM <- c(NA, (cumprod(1 + BD$RET[2:N]) - 1))
     BD$VAL_PORT_ACUM_B100 <- (BD$RET_ACUM + 1) * 100
@@ -1653,13 +1659,10 @@ FunEstParamOpt <- function(ListaEstOpt, SenalesOpt, ListaEstBase) {
   ) 
   
   # Visualización y exportación de estadísticas de retorno y riesgo de estrategia óptima
-  View(ListaEstOpt[[EstParamOpt]]$BDRDiario)
   addWorksheet(wb = ArchivoResultadosOpt, sheetName = "RetornosDiarios")
   writeData(wb = ArchivoResultadosOpt, sheet = "RetornosDiarios", x = ListaEstOpt[[EstParamOpt]]$BDRDiario)
-  View(ListaEstOpt[[EstParamOpt]]$BDRMensual)
   addWorksheet(wb = ArchivoResultadosOpt, sheetName = "RetornosMensuales")
   writeData(wb = ArchivoResultadosOpt, sheet = "RetornosMensuales", x = ListaEstOpt[[EstParamOpt]]$BDRMensual)
-  View(ListaEstOpt[[EstParamOpt]]$BDRAnual)
   addWorksheet(wb = ArchivoResultadosOpt, sheetName = "RetornosAnuales")
   writeData(wb = ArchivoResultadosOpt, sheet = "RetornosAnuales", x = ListaEstOpt[[EstParamOpt]]$BDRAnual)
   Nombre_BD_EstParamOpt <- SenalesOpt[c(EstParamOpt),c("NombreBD")]
@@ -1673,6 +1676,7 @@ FunEstParamOpt <- function(ListaEstOpt, SenalesOpt, ListaEstBase) {
   ArchivoBDEstrategiaParamBase <- createWorkbook()
   addWorksheet(wb = ArchivoBDEstrategiaParamBase, sheetName = "BDI")
   writeData(wb = ArchivoBDEstrategiaParamBase, sheet = "BDI", x = ListaEstBase[[EstParamOpt]]$BD)
+  Nombre_BD_EstParamOpt <- SenalesOpt[c(EstParamOpt),c("NombreBD")]
   NombreArchivoBDEstrategiaParamBase <- paste0(Nombre_BD_EstParamOpt, "_Propuesta_Base.xlsx")
   saveWorkbook(wb = ArchivoBDEstrategiaParamBase, 
                file = NombreArchivoBDEstrategiaParamBase, 
