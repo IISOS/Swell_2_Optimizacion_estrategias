@@ -1704,17 +1704,15 @@ rm(list = c("EstrategiaBase", "ResEstrategias"))
 
 # XX. OBSERVACIONES ###########################################################
 
+# Ajustar instrucciones
+#0 Columnas Raul en codigo Swell
+#1 Apalancamiento
+#2 Refinamiento: Volatilidad con solo datos conocidos (ventana movil de mas recientes?)
+#3 Refinamiento: Grafico B100 con solo largo
 
-
-#2 Crear funcion que exporte lo de cada estrategia de un top-10 de estrategias
-#3 Correr R/MDD para todas las estrategias y exportar top-10 (anualizar MDD?)
 #4 Rankings
 ##4.1 Calcular estadisticas restantes y dejarlas en "Senales"
 ##4.3 Generar rankings para cada una de ellas y dejarlos en "Puntajes"
 ##4.4 Calcular puntajes y dejarlos en "Puntajes"
 ##4.5 Exportar lo de cada estrategia top-10 de "Puntajes"
-#1 Columnas Raul en codigo Swell
 
-# Refinamiento: Volatilidad con solo datos conocidos (ventana movil de mas recientes?)
-# Falta apalancamiento
-# Ajustar instrucciones
