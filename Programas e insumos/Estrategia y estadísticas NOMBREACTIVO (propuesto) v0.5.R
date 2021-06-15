@@ -1,4 +1,4 @@
-###                         Optimización ETH                         ###
+###                     Optimización NOMBREACTIVO                    ###
 ###                            2021-06-07                            ###
 ###                           Version  0.4                           ###
 ###                Autores: Olga Serna / Ivan Serrano                ###
@@ -136,7 +136,7 @@ PlantillaG <- theme(plot.title = element_text(color = "grey20", angle = 0, hjust
 # 02. LECTURA Y PREPARACIÓN DE DATOS ##########################################
 
 # Archivos de insumo
-ArchivoCargue <- "Data ETH.xlsx"
+ArchivoCargue <- "Data NOMBREACTIVO.xlsx"
 ArchivoFractales <- "Fractales.xlsx"
 ArchivoInsumos <- "Insumos.xlsx"
 
@@ -572,7 +572,7 @@ TablaNivelesOpt <- read_excel(ArchivoInsumos,
                               sheet = "Niveles_Variables_Opt",
                               range = "A1:D5",
                               col_names = TRUE
-)
+                              )
 
 # Cálculo y asignación de niveles de SL y TP con base en retornos históricos del activo
 TablaNivelesOpt$Nivel1[match("Take Profit", TablaNivelesOpt$Variable)] <- quantile((BDPI$CLOSE/shift(BDPI$CLOSE, n=1, fill=NA) - 1), 0.95, na.rm = TRUE)
@@ -589,50 +589,50 @@ NPosibilidades_Opt <- NivelesVariables ^ NVariablesOpt
 Cal_TP_SL <- data.frame(SL = rep(rep(1:NivelesVariables,
                                      rep((NivelesVariables),
                                          NivelesVariables
-                                     )
-),
-NivelesVariables^2
-),
-TP = rep(rep(1:NivelesVariables,
-             rep((NivelesVariables^2),
-                 NivelesVariables
-             )
-),
-NivelesVariables
-),
-CIERRE_LL = rep(1:NivelesVariables,
-                rep((NivelesVariables^3),
-                    NivelesVariables
-                )
-),
-CIERRE_TP = rep(rep(1:NivelesVariables,
-                    rep(1,
-                        NivelesVariables
-                    )
-),
-NivelesVariables^3
-),
-R_MDD = rep(NA,81),
-EST_OPTIMA = rep(NA,81)
-)
+                                         )
+                                     ),
+                                 NivelesVariables^2
+                                 ),
+                        TP = rep(rep(1:NivelesVariables,
+                                     rep((NivelesVariables^2),
+                                         NivelesVariables
+                                         )
+                                     ),
+                                 NivelesVariables
+                                 ),
+                        CIERRE_LL = rep(1:NivelesVariables,
+                                        rep((NivelesVariables^3),
+                                            NivelesVariables
+                                            )
+                                        ),
+                        CIERRE_TP = rep(rep(1:NivelesVariables,
+                                            rep(1,
+                                                NivelesVariables
+                                                )
+                                            ),
+                                        NivelesVariables^3
+                                        ),
+                        R_MDD = rep(NA,81),
+                        EST_OPTIMA = rep(NA,81)
+                        )
 
 # Mapeo de tabla de combinaciones a niveles de TP y SL calculados
 Cal_TP_SL$SL <- t(TablaNivelesOpt[match("Stop Loss",TablaNivelesOpt$Variable),
                                   (Cal_TP_SL$SL+1)
-]
-)
+                                  ]
+                  )
 Cal_TP_SL$TP <- t(TablaNivelesOpt[match("Take Profit",TablaNivelesOpt$Variable),
                                   (Cal_TP_SL$TP+1)
-]
-)
+                                  ]
+                  )
 Cal_TP_SL$CIERRE_LL <- t(TablaNivelesOpt[match("Cierre Low Loss",TablaNivelesOpt$Variable),
-                                         (Cal_TP_SL$CIERRE_LL+1)
-]
-)
+                                  (Cal_TP_SL$CIERRE_LL+1)
+                                  ]
+                         )
 Cal_TP_SL$CIERRE_TP <- t(TablaNivelesOpt[match("Cierre Take Profit",TablaNivelesOpt$Variable),
-                                         (Cal_TP_SL$CIERRE_TP+1)
-]
-)
+                                  (Cal_TP_SL$CIERRE_TP+1)
+                                  ]
+                         )
 
 # Inclusion de parámetros de control, sin considerar TP y SL
 Cal_TP_SL[(NPosibilidades_Opt + 1),] <- c(-Inf,Inf,0,0,NA,NA)
@@ -1051,7 +1051,7 @@ FunDIFValEst <- function(ListaBD, TP, SL, CierreTP, CierreLL) {
         BD$VOL_VENTAS[t]
       BD$VAL_POSFINAL[t] <- BD$VOL_POSFINAL[t] * BD$CLOSE[t]
       BD$EFECTIVO[t] <- round((BD$EFECTIVO[t-1] + BD$VAL_VENTAS[t] - BD$VAL_COMPRAS[t] - BD$COMISION[t]),
-                              7)
+                             7)
       BD$VAL_PORT[t] <- BD$VAL_POSFINAL[t] + BD$EFECTIVO[t]
       
     }
@@ -1247,9 +1247,9 @@ FunDIFValEst <- function(ListaBD, TP, SL, CierreTP, CierreLL) {
                                                               width = 12, 
                                                               FUN = cumprod, 
                                                               fill = NA
-    )
-    )
-    ) - 1  
+                                                              )
+                                                   )
+                                     ) - 1  
     HVaRA <- quantile(x = BDRETMONTHLY$RET12MONTHS, probs = Significancia, na.rm = TRUE)
     HCVaRA <- mean(BDRETMONTHLY$RET12MONTHS[which(BDRETMONTHLY$RET12MONTHS < HVaRA)], na.rm = TRUE)
     
@@ -1322,7 +1322,7 @@ FunDIFValEst <- function(ListaBD, TP, SL, CierreTP, CierreLL) {
     return(BD_Est_Retorno_Riesgo)
     
   }
-  
+
   EstList <- lapply(ListaBD, Fun_Est_Riesgo_Retorno) # Construye lista de listas
   names(EstList) <- rownames(Senales)
   
@@ -1370,7 +1370,7 @@ FunDIFValEst <- function(ListaBD, TP, SL, CierreTP, CierreLL) {
   NEstrategiaOpt <- which.max(Senales$RAA_MPA)
   EstrategiaOpt <- rownames(Senales)[NEstrategiaOpt]
   paste0("La estrategia óptima es ", EstrategiaOpt)
-  
+
   
   # 12.6. OBJETIVOS Y RESULTADOS ##############################################
   
@@ -1378,8 +1378,8 @@ FunDIFValEst <- function(ListaBD, TP, SL, CierreTP, CierreLL) {
               Senales = Senales,
               RAA_MPA = Senales$RAA_MPA[NEstrategiaOpt],
               EstOpt = EstrategiaOpt
-  )
-  )
+             )
+         )
   
   
 }
@@ -1396,7 +1396,7 @@ for (i in 1:(NPosibilidades_Opt + 1)) {
                                  Cal_TP_SL$SL[i],
                                  Cal_TP_SL$CIERRE_TP[i],
                                  Cal_TP_SL$CIERRE_LL[i]
-  )
+                                 )
   
   Cal_TP_SL[i,c("R_MDD", "EST_OPTIMA")] <- ResEstrategias[c("RAA_MPA","EstOpt")]
   
@@ -1426,7 +1426,7 @@ EstrategiaOpt <- FunDIFValEst(BDList,
                               Cal_TP_SL$SL[NEstParamOpt],
                               Cal_TP_SL$CIERRE_TP[NEstParamOpt],
                               Cal_TP_SL$CIERRE_LL[NEstParamOpt]
-)
+                              )
 
 EstrategiaBase <- FunDIFValEst(BDList,
                                Cal_TP_SL$TP[NPosibilidades_Opt + 1],
@@ -1629,7 +1629,7 @@ FunEstParamOpt <- function(ListaEstOpt, SenalesOpt, ListaEstBase) {
   writeData(wb = ArchivoResultadosOpt, sheet = "SenalesOpt", x = SenalesOpt)
   addWorksheet(wb = ArchivoResultadosOpt, sheetName = "BDI")
   writeData(wb = ArchivoResultadosOpt, sheet = "BDI", x = ListaEstOpt[[EstParamOpt]]$BD)
-  
+
   # Visualización y exportación gráfico valor portafolio estrategia óptima
   Graf_ValPortAcumB100 <- ListaEstOpt[[EstParamOpt]]$Graf_ValPortAcumB100 +
     ggtitle(paste0("Valor portafolio estrategia ", EstParamOpt, " (Base 100)"))
@@ -1639,7 +1639,7 @@ FunEstParamOpt <- function(ListaEstOpt, SenalesOpt, ListaEstBase) {
          filename = "Valor portafolio estrategia.png",
          scale = 2
   ) 
-  
+
   # Visualización y exportación gráfico valor portafolio estrategia óptima
   # con y sin aplicación de parámetros de negociación
   
@@ -1686,7 +1686,7 @@ FunEstParamOpt <- function(ListaEstOpt, SenalesOpt, ListaEstBase) {
                file = NombreArchivoResultadosOpt, 
                overwrite = TRUE
   )
-  
+
   # Exportación BD estrategia con escenario base de parámetros de negociación
   ArchivoBDEstrategiaParamBase <- createWorkbook()
   addWorksheet(wb = ArchivoBDEstrategiaParamBase, sheetName = "BDI")
@@ -1713,7 +1713,21 @@ FunEstParamOpt <- function(ListaEstOpt, SenalesOpt, ListaEstBase) {
 FunEstParamOpt(EstrategiaOpt[[c("ListaEst")]], 
                EstrategiaOpt[[c("Senales")]],
                EstrategiaBase[[c("ListaEst")]] 
-)
+               )
 
 rm(list = c("EstrategiaBase"))
+
+# XX. OBSERVACIONES ###########################################################
+
+# Ajustar instrucciones
+#0 Columnas Raul en codigo Swell
+#1 Apalancamiento
+#2 Refinamiento: Volatilidad con solo datos conocidos (ventana movil de mas recientes?)
+#3 Refinamiento: Grafico B100 con solo largo
+
+#4 Rankings
+##4.1 Calcular estadisticas restantes y dejarlas en "Senales"
+##4.3 Generar rankings para cada una de ellas y dejarlos en "Puntajes"
+##4.4 Calcular puntajes y dejarlos en "Puntajes"
+##4.5 Exportar lo de cada estrategia top-10 de "Puntajes"
 

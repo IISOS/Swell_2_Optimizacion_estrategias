@@ -1700,7 +1700,7 @@ FunEstParamOpt(EstrategiaOpt[[c("ListaEst")]],
                EstrategiaBase[[c("ListaEst")]] 
                )
 
-rm(list = c("EstrategiaBase", "ResEstrategias"))
+rm(list = c("EstrategiaBase"))
 
 # XX. OBSERVACIONES ###########################################################
 
