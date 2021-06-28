@@ -1,6 +1,6 @@
 ###                     Optimización NOMBREACTIVO                    ###
 ###                            2021-06-07                            ###
-###                           Version  0.4                           ###
+###                           Version  0.5                           ###
 ###                Autores: Olga Serna / Ivan Serrano                ###
 
 
@@ -1260,7 +1260,79 @@ FunDIFValEst <- function(ListaBD, TP, SL, CierreTP, CierreLL) {
     #PVaRA <- 
     #PCVaRA <- 
     
-    #Porcentaje de retornos negativos
+    # Retorno por operación (trade)
+    BD$TRADE <- cumsum(na.replace(((BD$DECISION_FINAL == "OPEN") | (BD$DECISION_FINAL == "CLOSE-OPEN")), FALSE)) # Vector de grupos (se construye haciendo el cumsum de un vector con VERDADERO en puntos de inicio)
+    BD$TRADE <- shift(BD$TRADE, n=1, fill = NA) # Solo conteo donde se tiene en cuenta el retorno
+    BD$TRADE <- ifelse(BD$DECISION_FINAL == "NO POSITION" | BD$DECISION_FINAL == "OPEN",
+                       NA, # No se asigna grupo cuando no hay trade o se acaba de abrir.
+                       BD$TRADE
+                       ) 
+    BD <- BD %>% group_by(TRADE) %>%
+      mutate(RETTRADE_ACUM = (cumprod(1 + na.replace(RET, 0)) - 1))
+    
+    # Porcentaje trades ganadores y perdedores
+    TotalTrades <- max(BD$TRADE, na.rm = TRUE)
+    NWinnerTrades <- BD %>% group_by(TRADE) %>%
+      drop_na(TRADE) %>%
+      top_n(1, DATEFRAME) %>%
+      filter(RETTRADE_ACUM >= 0) %>%
+      ungroup() %>%
+      count() %>% # Devuelve data frame con columna "n" para cada elemento agrupado
+      pull(n)
+    NLoserTrades <- BD %>% group_by(TRADE) %>%
+      drop_na(TRADE) %>%
+      top_n(1, DATEFRAME) %>%
+      filter(RETTRADE_ACUM < 0) %>%
+      ungroup() %>%
+      count() %>% # Devuelve data frame con columna "n" para cada elemento agrupado
+      pull(n)
+    PWinnerTrades <- NWinnerTrades / TotalTrades
+    PLoserTrades <- NLoserTrades / TotalTrades
+
+    # Promedio retorno trades ganadores
+    RWinnerTrades <- BD %>% group_by(TRADE) %>%
+      drop_na(TRADE) %>%
+      top_n(1, DATEFRAME) %>%
+      filter(RETTRADE_ACUM >= 0) %>%
+      ungroup() %>%
+      summarize(PromR = mean(RETTRADE_ACUM)) %>%
+      pull(PromR)
+    
+    # Promedio retorno trades perdedores
+    RLoserTrades <- BD %>% group_by(TRADE) %>%
+      drop_na(TRADE) %>%
+      top_n(1, DATEFRAME) %>%
+      filter(RETTRADE_ACUM < 0) %>%
+      ungroup() %>%
+      summarize(PromR = mean(RETTRADE_ACUM)) %>%
+      pull(PromR)
+    
+    # Mediana retorno trades ganadores
+    MWinnerTrades <- BD %>% group_by(TRADE) %>%
+      drop_na(TRADE) %>%
+      top_n(1, DATEFRAME) %>%
+      filter(RETTRADE_ACUM >= 0) %>%
+      ungroup() %>%
+      summarize(MedianaR = median(RETTRADE_ACUM)) %>%
+      pull(MedianaR)
+    
+    # Mediana retorno trades perdedores
+    MLoserTrades <- BD %>% group_by(TRADE) %>%
+      drop_na(TRADE) %>%
+      top_n(1, DATEFRAME) %>%
+      filter(RETTRADE_ACUM < 0) %>%
+      ungroup() %>%
+      summarize(MedianaR = median(RETTRADE_ACUM)) %>%
+      pull(MedianaR)
+
+    BDRETANNUALY$NTRADES <- BD %>% mutate(YEAR = year(DATEFRAME)) %>%
+      drop_na(TRADE) %>%
+      group_by(YEAR) %>%
+      summarize(NTRADES = n_distinct(TRADE)) %>%
+      pull(NTRADES)
+    
+      
+            
     #Frecuencia de retornos menores a -1%, -5%, -10%, objetivo (libre riesgo)
     #Peor retorno
     
@@ -1720,10 +1792,9 @@ rm(list = c("EstrategiaBase"))
 # XX. OBSERVACIONES ###########################################################
 
 # Ajustar instrucciones
-#0 Columnas Raul en codigo Swell
+#0 Solicitudes Swell
 #1 Apalancamiento
 #2 Refinamiento: Volatilidad con solo datos conocidos (ventana movil de mas recientes?)
-#3 Refinamiento: Grafico B100 con solo largo
 
 #4 Rankings
 ##4.1 Calcular estadisticas restantes y dejarlas en "Senales"
