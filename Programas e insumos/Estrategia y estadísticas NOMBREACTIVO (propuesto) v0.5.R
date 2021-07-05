@@ -907,7 +907,7 @@ FunDIFValEst <- function(ListaBD, TP, SL, CierreTP, CierreLL) {
     
     BD$PENTRADA <- na.locf(BD$PENTRADA, na.rm = FALSE) # Arrastre donde no es OPEN o CLOSE-OPEN
     ID_CLOSEOPEN <- which(BD$DECISION_FINAL=="CLOSE-OPEN")
-    BD$PENTRADA[ID_CLOSEOPEN] <- shift(BD$PENTRADA, n=1, fill=NA)[ID_CLOSEOPEN] # Para CLOSE-OPEN se deja el PA de la posición cerrada.
+    BD$PENTRADA[ID_CLOSEOPEN] <- shift(BD$PENTRADA, n=1, fill=NA)[ID_CLOSEOPEN] # Para CLOSE-OPEN se deja el PE de la posición cerrada.
     BD$PENTRADA[which(BD$DECISION_FINAL == "NO POSITION")] <- NA # No aplica si no hay posición
     
     # Asignación de precio de cierre (PCIERRE)
@@ -993,7 +993,7 @@ FunDIFValEst <- function(ListaBD, TP, SL, CierreTP, CierreLL) {
       if (BD$DECISION_FINAL[t] == "OPEN") { # Si decisiÓn es "OPEN"
         
         BD$VAL_VENTAS[t] <- 0
-        BD$VOL_VENTAS[t] <- BD$VAL_VENTAS[t] / BD$PENTRADA[t] # 0
+        BD$VOL_VENTAS[t] <- BD$VAL_VENTAS[t] / BD$PENTRADA[t] # Es 0 (cero)
         BD$VAL_COMPRAS[t] <- BD$EFECTIVO[t-1] * (1 - Comision)
         BD$VOL_COMPRAS[t] <- BD$VAL_COMPRAS[t] / (BD$PENTRADA[t] * (1 + BAS))
         BD$COMISION[t] <- BD$EFECTIVO[t-1] * Comision
@@ -1119,7 +1119,7 @@ FunDIFValEst <- function(ListaBD, TP, SL, CierreTP, CierreLL) {
     BD$PERD_ACUM <- c(0, rep(NA, (N-1)))
     BD$MAX_PERD_ACUM <- c(0, rep(NA, (N-1)))
     
-    # Retorno de cada FH
+    # Retorno de cada FH (se suma comisión para no ser tenida en cuenta en retorno)
     BD$RET <- (((BD$VAL_PORT + BD$COMISION) / c(0, BD$VAL_PORT[1:N-1]) - 1)) * c(NA, BD$SENALSIGNO[1:N-1]) 
     # Retorno acumulado y acumulado base 100
     BD$RET_ACUM <- c(NA, (cumprod(1 + BD$RET[2:N]) - 1))
